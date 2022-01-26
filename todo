@@ -1,0 +1,32 @@
+[x] load font
+[x] write text to screen
+; [] make shader to render text
+[x] draw character using DrawTextCodepoint
+[x] use buffer as text input [character,palette index], which is 2 bytes per pixel
+; [] make useful functions for manipulating the text buffer
+Game logic time !
+[x] make border of screen to be walls ('#')
+[x] make character '@'
+[] make character move
+    [x] get keyboard input
+    [x] make buffer structure with info in it
+    [x] bound check buffer moving
+    [x] can't move into walls
+    [x] timer for moving
+    [x] w,a,s, & d
+[] make enemy
+[] attack the enemy
+    [] move into enemy to deal 5 damage
+[] write damage delt in character above enemy (or don't) for a second or something
+[] items!
+    [] move onto item and press 'e' to pick up item
+    [] contains the damage value you deal
+[] windows
+    [] make text buffers w/ function
+    [] make a main buffer (game scene) which is immediatly piped to the shader
+    [] make a inventory window that is 'blited' on top of the draw buffer after the main buffer
+[] inventory
+    [] plain text display current weapon (start with stick or something)
+    [] item on ground is sword (change item in inv when picked up)
+    [] drop stick
+idk maybe enemy ai or something
