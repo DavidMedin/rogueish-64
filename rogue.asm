@@ -3,21 +3,26 @@
     dq %1,%2
     times %1*%2*2 db 0x20
 %endmacro
-
-%macro make_qbuffer 2
-    dq %1,%2
-    times %1*%2*2 dq 0
-%endmacro
-
 ; Enum ID
 ;   null -> 0
 ;   person  -> 1
 ;   hero -> 2
 
-%macro make_person
-    ;qword id -> will always be a person
-    ;qword x,y
-    ;qword health
+;person* make_person(x,y,health)
+%macro make_person 4
+    ;i8 id -> will always be a person
+    ;i8 jmp_'mount
+    ;i8 x
+    ;i8 y
+    ;i8 health
+    mov rdi, 0x29 ; love me some hex
+    call malloc
+    mov qword[rax], 1 ; ID.person
+    mov qword[rax+0x8],  0x19
+    mov qword[rax+0x10], %1 ; x
+    mov qword[rax+0x18], %2 ; y
+    mov qword[rax+0x20], %3 ; health
+    mov byte[rax+0x21], %4
 %endmacro
 
 segment .data
@@ -39,12 +44,13 @@ segment .data
 
     char_spacing: dd 12
     game_buffer: make_buffer 75,67
-    ; entity_buffer: make_qbuffer 75,67
+    entity_list: times 256 dq 0
 
-    hero_pos: dq 30,40
 segment .bss
     font: resb 48
+    hero_data: resq 1
 
+    ent_list_end: resq 1
 segment .text
 
 
@@ -63,13 +69,14 @@ mov rdi, %2
 call IsKeyDown
 cmp al, 0
 je .%1_done
-    mov rsi, [hero_pos]
-    mov rdx, [hero_pos+8]
+    mov rdx, qword[hero_data]
+    mov rsi, [rdx+0x10]
+    mov rdx, [rdx+0x18]
 
     ; update the buffer
     mov rdi, game_buffer
-    mov rcx, [hero_pos]
-    mov r8, [hero_pos+8]
+    mov rcx, rsi
+    mov r8, rdx
     add rcx, %3
     add r8, %4
     call MoveChar
@@ -83,8 +90,9 @@ je .%1_done
     .%1_succ: ; not failed
         cmp rax, 2
         je .%1_done ; if did something
-        add qword[hero_pos+8], %4
-        add qword[hero_pos], %3
+        mov rax, [hero_data]
+        add qword[rax+0x10], %3
+        add qword[rax+0x18], %4
         movsd xmm0, [zero_double]
         movsd [move_time_acc],xmm0
         mov byte[move_check], 0
@@ -105,6 +113,7 @@ extern DrawTextCodepoint
 extern MeasureTextEx
 extern IsKeyDown
 extern GetFrameTime
+extern malloc
 
 ;arguments -> rdi,rsi,rdx,rcx,r8,r9,stack
 main:
@@ -145,70 +154,24 @@ main:
     mov r8, font
     call RealLoadFontEx ; "Real"
     
-    
-    ; write to the buffer
-    mov eax,0
-    top_write_y:
-        cmp eax,[game_buffer + 8]
-        je bot_write_y
-
-        mov ebx,0
-        top_write_x:
-            cmp ebx,[game_buffer + 0]
-            je bot_write_x
-
-            ; if (eax == 0 || ebx == 0 || eax == (buff_size_x - 1) || ebx == (buff_size_y - 1) )
-            cmp eax, 0
-            je succ
-            cmp ebx,0
-            je succ
-            mov ecx, [game_buffer + 8]
-            dec ecx
-            cmp eax,ecx
-            je succ
-            mov ecx, [game_buffer + 0]
-            dec ecx
-            cmp ebx,ecx
-            je succ
-
-            mov r8d,1
-            jmp write_fail
-            succ:
-            mov r8d, 0
-            write_fail:
-
-                push rax
-                push rbx
-                push r8
-                mov rdi, game_buffer
-                mov esi, ebx
-                mov edx, eax
-                call IndexBuffer
-                pop r8
-                cmp r8d,0
-                jne write_end
-                mov byte[rax], '#'
-                write_end:
-                mov byte[rax+1], 1
-                pop rbx
-                pop rax
-        
-            inc ebx
-            jmp top_write_x
-        bot_write_x:
-
-        inc eax
-        jmp top_write_y
-    bot_write_y:
-
-    ;write the character
     mov rdi, game_buffer
-    xor rsi,rsi
-    mov rsi, [hero_pos]
-    mov rdx, [hero_pos+8]
-    call IndexBuffer
-    mov byte [rax], 0x40
-    mov byte [rax+1], 0
+    call DrawRoom
+
+    ; call ClearBuffer
+    TEST_write:
+    mov qword[ent_list_end], entity_list
+    ;allocate the character
+    make_person 30,40,100,'@'
+    mov qword[hero_data], rax
+    mov qword[entity_list], rax
+    add qword[ent_list_end], 8; increment the end of the list thingy
+
+    ;allocate the enemy
+    make_person 40,20,100,'Z'
+    mov rbx, qword[ent_list_end]
+    mov qword[rbx], rax
+    add qword[ent_list_end], 8
+
     while_top:
     call WindowShouldClose
 
@@ -233,7 +196,6 @@ main:
         jp .set_end_compare
         jb .set_end_compare
 
-        jb .set_end_compare
         .set_move_byte:
             mov byte[move_check], 1
         .set_end_compare:
@@ -254,6 +216,20 @@ main:
         mov edi, dword[background]
         call ClearBackground
 
+        ;clear buffer
+        mov rdi, game_buffer
+        call ClearBuffer
+        ;draw  room
+        call DrawRoom
+        
+
+        ;draw entities
+        call DrawEntities
+
+        ; draw the Hero over everything
+        mov rsi, [entity_list]
+        call DrawEntity
+
         call DrawBuffer
         
         call EndDrawing
@@ -268,6 +244,153 @@ main:
     pop rbp
     ret
 move_char_fail_msg: db "Attempted to move character out of bounds!",10,0
+
+;void DrawEntity(Buffer* buffer,Entity* entity)
+DrawEntity:
+    push rbp
+    mov rbp,rsp
+
+    push rsi
+    mov rcx, rsi
+    mov rsi, [rcx+0x10]
+    mov rdx, [rcx+0x18]
+    call IndexBuffer
+    pop rsi
+    mov bl, [rsi+0x21]
+    mov byte[rax], bl
+
+    mov rsp,rbp
+    pop rbp
+    ret
+
+
+; void DrawEntities(Buffer* buffer)
+DrawEntities:
+    push rbp
+    mov rbp, rsp
+
+    mov rbx, entity_list
+    .top_loop:
+        cmp rbx, qword[ent_list_end]
+        jge .bot_loop
+
+        mov rcx, qword[rbx]
+        cmp qword[rcx], 1 ; 1=person
+        jne .end_process
+            push rbx
+            push rcx
+            mov rsi, qword[rcx+0x10]
+            mov rdx, qword[rcx+0x18]
+            call IndexBuffer
+            pop rcx
+            pop rbx
+            mov dl, byte[rcx+0x21]
+            mov byte[rax], dl
+        jmp .end_process
+        .not_person:
+
+        .end_process:
+
+        add rbx, 8
+        jmp .top_loop
+    .bot_loop:
+
+    mov rsp, rbp
+    pop rbp
+    ret
+
+; void ClearBuffer(Buffer* buffer)
+ClearBuffer:
+    push rbp
+    mov rbp, rsp
+
+    mov rbx, 0
+    .top_y:
+        cmp rbx,[rdi+0x8]
+        jge .bot_y 
+        mov rcx, 0
+        .top_x:
+            cmp rcx,[rdi+0]
+            jge .bot_x
+
+            mov rsi, rcx
+            mov rdx, rbx
+            call IndexBuffer
+            mov byte[rax], 0x20 ; I think 0x20 is ' '
+
+            inc rcx
+            jmp .top_x
+            .bot_x:
+        inc rbx
+        jmp .top_y
+        .bot_y:
+
+    mov rsp, rbp
+    pop rbp
+    ret
+
+;                   rdi
+; void DrawRoom(Buffer* buffer)
+DrawRoom:
+    push rbp
+    mov rbp, rsp
+    ; write to the buffer
+    mov eax,0
+    top_write_y:
+        cmp eax,[rdi + 8]
+        je bot_write_y
+
+        mov ebx,0
+        top_write_x:
+            cmp ebx,[rdi + 0]
+            je bot_write_x
+
+            ; if (eax == 0 || ebx == 0 || eax == (buff_size_x - 1) || ebx == (buff_size_y - 1) )
+            cmp eax, 0
+            je succ
+            cmp ebx,0
+            je succ
+            mov ecx, [rdi + 8]
+            dec ecx
+            cmp eax,ecx
+            je succ
+            mov ecx, [rdi + 0]
+            dec ecx
+            cmp ebx,ecx
+            je succ
+
+            mov r8d,1
+            jmp write_fail
+            succ:
+            mov r8d, 0
+            write_fail:
+
+                push rax
+                push rbx
+                push r8
+                mov rdi, rdi
+                mov esi, ebx
+                mov edx, eax
+                call IndexBuffer
+                pop r8
+                cmp r8d,0
+                jne write_end
+                mov byte[rax], '#'
+                write_end:
+                mov byte[rax+1], 1
+                pop rbx
+                pop rax
+        
+            inc ebx
+            jmp top_write_x
+        bot_write_x:
+
+        inc eax
+        jmp top_write_y
+    bot_write_y:
+    mov rsp, rbp
+    pop rbp
+    ret
 
 ;(0:error, 1:succeed, 2:failed to move (mechanical))
 ; rax               rdi            rsi     rdx    rcx  r8
@@ -295,6 +418,7 @@ MoveChar:
     push rax
     mov rsi,rcx
     mov rdx,r8
+    TEST_INDEXING:
     call IndexBuffer
 
     ;check if the index was out of bounds
@@ -347,7 +471,9 @@ IndexBuffer:
     jge index_buffer_fail
     jmp index_buffer_succ
     index_buffer_fail:
+        add rsp,8 ; handle the last push
         mov rax, 0
+        ; .break_oh_no:
         jmp index_buffer_end
     index_buffer_succ:
 
@@ -366,9 +492,7 @@ IndexBuffer:
     add rax, r8
     add rax, rdi
     add rax, 16 ; skip over the size of the buffer
-    ; lea rax, [rdi + rax]
     index_buffer_end:
-    ; pop rcx ; y
     pop rdx
     pop rsi
     pop rdi
@@ -378,7 +502,6 @@ IndexBuffer:
     ret
 
 ;void DrawBuffer(Font* font)
-const_vecy: dd 16.0
 DrawBuffer:
     push rbp
     mov rbp, rsp
