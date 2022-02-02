@@ -8,21 +8,29 @@
 ;   person  -> 1
 ;   hero -> 2
 
-;person* make_person(x,y,health)
-%macro make_person 4
-    ;i8 id -> will always be a person
-    ;i8 jmp_'mount
-    ;i8 x
-    ;i8 y
-    ;i8 health
-    mov rdi, 0x29 ; love me some hex
+struc Person
+    .id: resq 1
+    .jump: resq 1
+    .x: resq 1
+    .y: resq 1
+    .health: resq 1
+    .char: resb 1
+    .color: resb 1
+endstruc
+
+%macro make_person 5
+    mov rdi, Person_size
     call malloc
-    mov qword[rax], 1 ; ID.person
-    mov qword[rax+0x8],  0x19
-    mov qword[rax+0x10], %1 ; x
-    mov qword[rax+0x18], %2 ; y
-    mov qword[rax+0x20], %3 ; health
-    mov byte[rax+0x21], %4
+    mov qword[rax+Person.id], 1
+    mov rbx, Person_size
+
+    sub rbx, Person.jump
+    mov qword[rax+Person.jump], rbx
+    mov qword[rax+Person.x], %1
+    mov qword[rax+Person.y], %2
+    mov qword[rax+Person.health], %3
+    mov byte[rax+Person.char], %4
+    mov byte[rax+Person.color], %5
 %endmacro
 
 segment .data
@@ -31,7 +39,7 @@ segment .data
     font_file: db "font.ttf",0
     measure_text: db "#",0
     print_num: db "%.6f",10,0
-
+    sprint_msg: db "--==Rogueish 64==--",0
     window_x: dq 1200
     window_y: dq 1072
     background: dd 0xff311d18
@@ -65,38 +73,67 @@ segment .text
 
 
 %macro move_char 4
-mov rdi, %2
-call IsKeyDown
-cmp al, 0
-je .%1_done
-    mov rdx, qword[hero_data]
-    mov rsi, [rdx+0x10]
-    mov rdx, [rdx+0x18]
+    push r11
+    mov rdi, %2
+    call IsKeyDown
+    cmp al, 0
+    je .%1_done
+        mov rdx, qword[hero_data]
+        mov rsi, [rdx+Person.x]
+        mov rdx, [rdx+Person.y]
 
-    ; update the buffer
-    mov rdi, game_buffer
-    mov rcx, rsi
-    mov r8, rdx
-    add rcx, %3
-    add r8, %4
-    call MoveChar
+        ; update the buffer
+        mov rdi, game_buffer
+        ; mov rcx, rsi
+        ; mov r8, rdx
+        cmp qword[rsp],1
+        jne .%1_not_shifting
+            push rdx
+            ; is pressing shift
+            mov rax,9
+            cqo
+            mov rbx,%3
+            mul rbx
+            add rsi,rax
+            mov rax,9
+            cqo
+            mov rbx,%4
+            mul rbx
+            pop rdx
+            add rdx,rax
+        .%1_not_shifting:
+        add rsi, %3
+        add rdx, %4
+        push rsi
+        push rdx
+        sub rsp, 8 ;|-> Just to give CanMove a
+        mov rcx,rsp;| valid address.
+        call CanMove
+        add rsp,8
 
-    cmp rax, 0
-    jne  .%1_succ ; if failed
-        ; fail!
-        mov rdi, move_char_fail_msg
-        call printf
-        jmp .%1_done
-    .%1_succ: ; not failed
-        cmp rax, 2
-        je .%1_done ; if did something
-        mov rax, [hero_data]
-        add qword[rax+0x10], %3
-        add qword[rax+0x18], %4
-        movsd xmm0, [zero_double]
-        movsd [move_time_acc],xmm0
-        mov byte[move_check], 0
-.%1_done:
+        cmp rax, 0
+        jne  .%1_succ ; if failed
+            ; fail!
+            mov rdi, move_char_fail_msg
+            call printf
+            jmp .%1_clean_done
+        .%1_succ: ; not failed
+            cmp rax, 2
+            je .%1_clean_done ; if did something
+            mov rax, [hero_data]
+            ; add qword[rax+0x10], %3
+            ; add qword[rax+0x18], %4
+            mov rbx, [rsp+8]
+            mov rcx, [rsp]
+            mov qword[rax+Person.x],rbx
+            mov qword[rax+Person.y],rcx
+        .%1_clean_done:
+            movsd xmm0, [zero_double]
+            movsd [move_time_acc],xmm0
+            mov byte[move_check], 0
+            add rsp, 0x10
+    .%1_done:
+    pop r11
 %endmacro
 
 global main
@@ -124,13 +161,13 @@ main:
     ; w = size / 2
     xor rax,rax
     mov eax, [char_spacing]
-    cdq
+    cqo
     mul dword [game_buffer + 0]
     mov rcx, rax
 
     xor eax,eax
     mov eax, [char_spacing]
-    cdq
+    cqo
     mul dword [game_buffer + 8]
     sub eax,4
     sub ecx,4
@@ -158,16 +195,15 @@ main:
     call DrawRoom
 
     ; call ClearBuffer
-    TEST_write:
     mov qword[ent_list_end], entity_list
     ;allocate the character
-    make_person 30,40,100,'@'
+    make_person 30,40,100,'@',0
     mov qword[hero_data], rax
     mov qword[entity_list], rax
     add qword[ent_list_end], 8; increment the end of the list thingy
 
     ;allocate the enemy
-    make_person 40,20,100,'Z'
+    make_person 40,20,100,'Z',1
     mov rbx, qword[ent_list_end]
     mov qword[rbx], rax
     add qword[ent_list_end], 8
@@ -203,6 +239,13 @@ main:
         cmp byte[move_check],0
         je done_input
 
+            mov r11,0
+            mov rdi, 340 ; Left Shift
+            call IsKeyDown
+            cmp al,0
+            je .shift_not_down
+                mov r11,1; signifies shift is down
+            .shift_not_down:            
             ;     |label name|key num|direction|
             move_char w,      87,      0,-1
             move_char s,      83,      0,1
@@ -222,7 +265,6 @@ main:
         ;draw  room
         call DrawRoom
         
-
         ;draw entities
         call DrawEntities
 
@@ -231,7 +273,6 @@ main:
         call DrawEntity
 
         call DrawBuffer
-        
         call EndDrawing
 
         jmp while_top
@@ -252,17 +293,49 @@ DrawEntity:
 
     push rsi
     mov rcx, rsi
-    mov rsi, [rcx+0x10]
-    mov rdx, [rcx+0x18]
+    mov rsi, [rcx+Person.x]
+    mov rdx, [rcx+Person.y]
     call IndexBuffer
     pop rsi
-    mov bl, [rsi+0x21]
+    mov bl, [rsi+Person.char]
     mov byte[rax], bl
+    mov bl, [rsi+Person.color]
+    mov byte[rax+1], bl
 
     mov rsp,rbp
     pop rbp
     ret
 
+;rax                 rdi   rsi
+;entity* FindEntity(int x,int y)
+FindEntity:
+    push rbp
+    mov rbp,rsp
+        ;iterate through entities to find an entity at a particular place.
+        mov rbx, entity_list
+        .top:
+            cmp rbx,[ent_list_end]
+            je  .no_find
+            mov rcx, qword[rbx]
+            cmp [rcx+Person.x], rdi
+            jne .nope
+            cmp [rcx+Person.y], rsi
+            jne .nope
+            jmp .found
+            .nope:
+
+            add rbx, 8
+            jmp .top
+
+        .no_find:
+        mov rax, 0
+        jmp .end
+        .found:
+        mov rax, rbx
+        .end:
+    mov rsp,rbp
+    pop rbp
+    ret
 
 ; void DrawEntities(Buffer* buffer)
 DrawEntities:
@@ -279,13 +352,15 @@ DrawEntities:
         jne .end_process
             push rbx
             push rcx
-            mov rsi, qword[rcx+0x10]
-            mov rdx, qword[rcx+0x18]
+            mov rsi, qword[rcx+Person.x]
+            mov rdx, qword[rcx+Person.y]
             call IndexBuffer
             pop rcx
             pop rbx
-            mov dl, byte[rcx+0x21]
+            mov dl, byte[rcx+Person.char]
             mov byte[rax], dl
+            mov dl, byte[rcx+Person.color]
+            mov byte[rax+1], dl
         jmp .end_process
         .not_person:
 
@@ -334,6 +409,7 @@ ClearBuffer:
 DrawRoom:
     push rbp
     mov rbp, rsp
+    push rdi
     ; write to the buffer
     mov eax,0
     top_write_y:
@@ -388,9 +464,121 @@ DrawRoom:
         inc eax
         jmp top_write_y
     bot_write_y:
+    mov rsi, 1
+    mov rdx, 1
+    mov rcx, sprint_msg
+    mov r8, 30
+    mov r9, 5
+    call CopyText
+    pop rdi
     mov rsp, rbp
     pop rbp
     ret
+
+;(0:error, 1:yes, 2:no) if hit!=0, then we *could* move
+;if returns 1 or 0, rcx was not written too.
+;rcx can be NULL if returned 2. It will only point
+;   to an entity if an entity is in the way.
+;rax            rdi       rsi   rdx     rcx
+;int CanMove(char*buffer,int x,int y,entity* hit)
+CanMove:
+    push rbp
+    mov rbp,rsp
+    push rcx
+    call IndexBuffer
+    cmp rax, 0
+    jne .no_fail
+        ; error
+        jmp .end
+    .no_fail:
+    push rax
+    cmp byte[rax], '#'
+    je .no
+    ;see if something else is there
+    mov rdi, rsi
+    mov rsi, rdx
+    call FindEntity
+    cmp rax, 0
+    je .success
+    ;entity is there
+    ;TODO: read member to see if 'walkable' like an item.
+    ;defaulting to not 'walkable' for now.
+    pop rcx
+    mov [rcx], rax
+    jmp .no 
+    .success:
+        mov rax,1
+        jmp .end
+    .no:
+        mov rax,2
+        jmp .end
+    .end:
+    mov rsp,rbp
+    pop rbp
+    ret
+
+;                   rdi         rsi  rdx     rcx           r8          r9
+;void CopyText(buffer* buffer,int x,int y,char* string,int width, int height)
+;                                                 TODO:|    For word wrap   |
+CopyText:
+    push rbp
+    mov rbp, rsp
+    mov rbx, rcx
+    push r8 ; width -> -0x8
+    push r9; height -> -0x10
+    push rcx ; string -> -0x18
+    call IndexBuffer ; it just works
+    mov r8, [rbp - 0x8]
+    mov r9, [rbp - 0x10]
+
+    push 0; x ->  -0x20
+    push 0; y -> -0x28
+    
+    cmp rax,0
+    jne .top
+        .fail:
+        push rdi
+        mov rdi, copy_text_err
+        call printf
+        pop rdi
+        jmp .end
+    .top:
+        cmp byte[rbx], 0
+        je .end
+        cmp qword[rbp-0x20],r8
+        jnge .no_skip
+            ; greater than or equal to width
+            mov qword[rbp-0x20], 0 ; reset x
+            inc qword[rbp-0x28] ; move cursor y down 1
+            inc rdx ;| input args. x is already in rsi
+                    ;|, and we just need to add 1 to y.
+            push rbx
+            call IndexBuffer ; get new place to write to -> rax
+            mov r8, [rbp - 0x8] ; restore r8 and r9
+            mov r9, [rbp - 0x10]
+            pop rbx ; restore pointer into input string
+            cmp rax, 0 ; potentially fail
+            je .fail
+
+        .no_skip:
+        
+        mov cl, byte[rbx]
+        mov [rax], cl
+        
+        ; increment
+        add rax,2
+        inc rbx
+        inc qword[rbp-0x20] ; x
+        jmp .top
+    .end:
+    add rsp, 0x10
+    pop rcx
+    pop r9
+    pop r8
+    mov rsp, rbp
+    pop rbp
+    ret
+copy_text_err: db "Attepted to write text into invalid space! (%d, %d)",10,0
 
 ;(0:error, 1:succeed, 2:failed to move (mechanical))
 ; rax               rdi            rsi     rdx    rcx  r8
@@ -418,7 +606,6 @@ MoveChar:
     push rax
     mov rsi,rcx
     mov rdx,r8
-    TEST_INDEXING:
     call IndexBuffer
 
     ;check if the index was out of bounds
@@ -469,6 +656,10 @@ IndexBuffer:
     jge index_buffer_fail
     cmp rdx, [rdi + 8] ; y
     jge index_buffer_fail
+    cmp rsi, 0
+    jl index_buffer_fail
+    cmp rdx, 0
+    jl index_buffer_fail
     jmp index_buffer_succ
     index_buffer_fail:
         add rsp,8 ; handle the last push
@@ -478,7 +669,7 @@ IndexBuffer:
     index_buffer_succ:
 
     mov rax, [rdi + 0]
-    cdq ; what about it
+    cqo
     mul qword [rsp] ; y
     mov r8, 2
     mul r8 
@@ -486,7 +677,7 @@ IndexBuffer:
     add rsp, 8
 
     mov rax, rsi ; x
-    cdq
+    cqo
     mov r9, 2
     mul r9
     add rax, r8
@@ -572,7 +763,7 @@ DrawBuffer:
             xor rsi,rsi
             xor rax,rax
             mov rax, rbx
-            cdq
+            cqo
             mov r8, 4
             mul r8
             mov esi, [pallete + rax]

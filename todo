@@ -14,7 +14,8 @@ Game logic time !
     [x] can't move into walls
     [x] timer for moving
     [x] w,a,s, & d
-[] make enemy
+[x] draw text onto buffer
+[x] make enemy
 [] attack the enemy
     [] move into enemy to deal 5 damage
 [] write damage delt in character above enemy (or don't) for a second or something
