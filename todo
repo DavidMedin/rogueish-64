@@ -16,8 +16,8 @@ Game logic time !
     [x] w,a,s, & d
 [x] draw text onto buffer
 [x] make enemy
-[] attack the enemy
-    [] move into enemy to deal 5 damage
+[x] attack the enemy
+    [x] move into enemy to deal 5 damage
 [] write damage delt in character above enemy (or don't) for a second or something
 [] items!
     [] move onto item and press 'e' to pick up item

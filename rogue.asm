@@ -106,10 +106,11 @@ segment .text
         add rdx, %4
         push rsi
         push rdx
-        sub rsp, 8 ;|-> Just to give CanMove a
+        ; sub rsp, 8 ;| -> Just to give CanMove a
+        push 69
         mov rcx,rsp;| valid address.
         call CanMove
-        add rsp,8
+        ; add rsp,8
 
         cmp rax, 0
         jne  .%1_succ ; if failed
@@ -119,15 +120,32 @@ segment .text
             jmp .%1_clean_done
         .%1_succ: ; not failed
             cmp rax, 2
-            je .%1_clean_done ; if did something
+            je .%1_hit ; if did something
             mov rax, [hero_data]
-            ; add qword[rax+0x10], %3
-            ; add qword[rax+0x18], %4
-            mov rbx, [rsp+8]
-            mov rcx, [rsp]
+            mov rbx, [rsp+0x10]
+            mov rcx, [rsp+0x8]
             mov qword[rax+Person.x],rbx
             mov qword[rax+Person.y],rcx
+            jmp .%1_clean_done
+        .%1_hit:
+            ; attack I guess
+            ;TODO: only attack if has correct component
+            cmp qword[rsp], 0
+            je .%1_clean_done
+            ;has data (not a wall)
+            mov rax, qword[rsp]
+            mov rcx, qword[rax]
+            sub qword[rcx+Person.health], 10
+            cmp qword[rcx+Person.health], 0
+            jg .%1_not_dead
+                ;dead
+                mov rdi, rcx
+                call free
+                mov qword[rsp], 0
+            .%1_not_dead:
         .%1_clean_done:
+            ; clean up timer
+            add rsp, 8 ; clean up pointer given to CanMove
             movsd xmm0, [zero_double]
             movsd [move_time_acc],xmm0
             mov byte[move_check], 0
@@ -151,6 +169,7 @@ extern MeasureTextEx
 extern IsKeyDown
 extern GetFrameTime
 extern malloc
+extern free
 
 ;arguments -> rdi,rsi,rdx,rcx,r8,r9,stack
 main:
@@ -467,7 +486,7 @@ DrawRoom:
     mov rsi, 1
     mov rdx, 1
     mov rcx, sprint_msg
-    mov r8, 30
+    mov r8, 4
     mov r9, 5
     call CopyText
     pop rdi
@@ -489,9 +508,10 @@ CanMove:
     cmp rax, 0
     jne .no_fail
         ; error
+        pop rcx
         jmp .end
     .no_fail:
-    push rax
+    ; push rax
     cmp byte[rax], '#'
     je .no
     ;see if something else is there
