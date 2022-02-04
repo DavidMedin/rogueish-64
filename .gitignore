@@ -3,4 +3,4 @@ test-c
 rogue
 test_struct
 *.o
-.gdb*
+.gdb_history

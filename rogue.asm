@@ -1,4 +1,4 @@
-
+%include "inspector.asm"
 %macro make_buffer 2
     dq %1,%2
     times %1*%2*2 db 0x20
@@ -133,15 +133,23 @@ segment .text
             cmp qword[rsp], 0
             je .%1_clean_done
             ;has data (not a wall)
-            mov rax, qword[rsp]
-            mov rcx, qword[rax]
+            mov rax, qword[rsp] ; rax = place in ent_list
+            mov rcx, qword[rax] ; rcx = entity data
             sub qword[rcx+Person.health], 10
             cmp qword[rcx+Person.health], 0
             jg .%1_not_dead
                 ;dead
                 mov rdi, rcx
+                push rax
                 call free
-                mov qword[rsp], 0
+                pop rax
+                mov qword[rax], 0
+                
+                add rax, 0x8
+                cmp qword[ent_list_end], rax
+                jne .%1_clean_done
+                    ;is the last in the list
+                    sub qword[ent_list_end], 0x8
             .%1_not_dead:
         .%1_clean_done:
             ; clean up timer
@@ -291,6 +299,9 @@ main:
         mov rsi, [entity_list]
         call DrawEntity
 
+        mov rdi, game_buffer
+        call DrawInspector
+
         call DrawBuffer
         call EndDrawing
 
@@ -336,6 +347,8 @@ FindEntity:
             cmp rbx,[ent_list_end]
             je  .no_find
             mov rcx, qword[rbx]
+            cmp rcx, 0; this is null
+            je .nope
             cmp [rcx+Person.x], rdi
             jne .nope
             cmp [rcx+Person.y], rsi
@@ -483,12 +496,12 @@ DrawRoom:
         inc eax
         jmp top_write_y
     bot_write_y:
-    mov rsi, 1
-    mov rdx, 1
-    mov rcx, sprint_msg
-    mov r8, 4
-    mov r9, 5
-    call CopyText
+    ; mov rsi, 1
+    ; mov rdx, 1
+    ; mov rcx, sprint_msg
+    ; mov r8, 5
+    ; mov r9, 5
+    ; call CopyText
     pop rdi
     mov rsp, rbp
     pop rbp
@@ -512,6 +525,7 @@ CanMove:
         jmp .end
     .no_fail:
     ; push rax
+    mov qword[rcx], 0
     cmp byte[rax], '#'
     je .no
     ;see if something else is there
@@ -521,8 +535,9 @@ CanMove:
     cmp rax, 0
     je .success
     ;entity is there
-    ;TODO: read member to see if 'walkable' like an item.
-    ;defaulting to not 'walkable' for now.
+    mov rbx, [rax]
+    cmp qword[rbx+Person.id], 1
+    jne .success
     pop rcx
     mov [rcx], rax
     jmp .no 
@@ -536,69 +551,6 @@ CanMove:
     mov rsp,rbp
     pop rbp
     ret
-
-;                   rdi         rsi  rdx     rcx           r8          r9
-;void CopyText(buffer* buffer,int x,int y,char* string,int width, int height)
-;                                                 TODO:|    For word wrap   |
-CopyText:
-    push rbp
-    mov rbp, rsp
-    mov rbx, rcx
-    push r8 ; width -> -0x8
-    push r9; height -> -0x10
-    push rcx ; string -> -0x18
-    call IndexBuffer ; it just works
-    mov r8, [rbp - 0x8]
-    mov r9, [rbp - 0x10]
-
-    push 0; x ->  -0x20
-    push 0; y -> -0x28
-    
-    cmp rax,0
-    jne .top
-        .fail:
-        push rdi
-        mov rdi, copy_text_err
-        call printf
-        pop rdi
-        jmp .end
-    .top:
-        cmp byte[rbx], 0
-        je .end
-        cmp qword[rbp-0x20],r8
-        jnge .no_skip
-            ; greater than or equal to width
-            mov qword[rbp-0x20], 0 ; reset x
-            inc qword[rbp-0x28] ; move cursor y down 1
-            inc rdx ;| input args. x is already in rsi
-                    ;|, and we just need to add 1 to y.
-            push rbx
-            call IndexBuffer ; get new place to write to -> rax
-            mov r8, [rbp - 0x8] ; restore r8 and r9
-            mov r9, [rbp - 0x10]
-            pop rbx ; restore pointer into input string
-            cmp rax, 0 ; potentially fail
-            je .fail
-
-        .no_skip:
-        
-        mov cl, byte[rbx]
-        mov [rax], cl
-        
-        ; increment
-        add rax,2
-        inc rbx
-        inc qword[rbp-0x20] ; x
-        jmp .top
-    .end:
-    add rsp, 0x10
-    pop rcx
-    pop r9
-    pop r8
-    mov rsp, rbp
-    pop rbp
-    ret
-copy_text_err: db "Attepted to write text into invalid space! (%d, %d)",10,0
 
 ;(0:error, 1:succeed, 2:failed to move (mechanical))
 ; rax               rdi            rsi     rdx    rcx  r8

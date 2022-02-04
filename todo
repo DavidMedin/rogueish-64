@@ -7,7 +7,7 @@
 Game logic time !
 [x] make border of screen to be walls ('#')
 [x] make character '@'
-[] make character move
+[x] make character move
     [x] get keyboard input
     [x] make buffer structure with info in it
     [x] bound check buffer moving
@@ -18,6 +18,12 @@ Game logic time !
 [x] make enemy
 [x] attack the enemy
     [x] move into enemy to deal 5 damage
+    [x] bugs!
+        [x] colliding with dead enemy
+        [x] when enemy is dead, crash on out of bounds error
+[] make entity inspector
+    [x] draw entity addresses to screen
+    [] draw to screen entity names (or just address)
 [] write damage delt in character above enemy (or don't) for a second or something
 [] items!
     [] move onto item and press 'e' to pick up item
