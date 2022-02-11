@@ -6,7 +6,7 @@ libwrappers.a : wrappers.c
 	ar rcs libwrappers.a wrappers.o
 	rm wrappers.o
 
-rogue: rogue.asm inspector.asm libwrappers.a
+rogue: rogue.asm inspector.asm ecs.asm libwrappers.a
 	nasm -f elf64 -F dwarf -g rogue.asm
 	gcc -g -m64 -no-pie -o rogue rogue.o -lc ./lib/libraylib.a -L./ -lwrappers -lGL -lm -lpthread -ldl -lrt -lX11
 

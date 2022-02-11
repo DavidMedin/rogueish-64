@@ -1,4 +1,5 @@
 %include "inspector.asm"
+%include "ecs.asm"
 %macro make_buffer 2
     dq %1,%2
     times %1*%2*2 db 0x20
@@ -8,35 +9,47 @@
 ;   person  -> 1
 ;   hero -> 2
 
-struc Person
+struc Component
     .id: resq 1
-    .jump: resq 1
+    .size: resq 1
+endstruc
+struc Person
+    ;should be the same as Component
+    .id: resq 1
+    .size: resq 1
+    
     .x: resq 1
     .y: resq 1
+    
     .health: resq 1
-    .char: resb 1
-    .color: resb 1
+    .char: resq 1
+    .color: resq 1
+endstruc
+
+struc Label
+    .id: resq 1
+    .size: resq 1
+    .text: resq 1
 endstruc
 
 %macro make_person 5
-    mov rdi, Person_size
-    call malloc
-    mov qword[rax+Person.id], 1
-    mov rbx, Person_size
-
-    sub rbx, Person.jump
-    mov qword[rax+Person.jump], rbx
+    mov rdi, 1
+    call MakeEntity
+    je %%fail ; Wow!
+    ; mov qword[rax+Person.jump], rbx
     mov qword[rax+Person.x], %1
     mov qword[rax+Person.y], %2
     mov qword[rax+Person.health], %3
-    mov byte[rax+Person.char], %4
-    mov byte[rax+Person.color], %5
+    mov qword[rax+Person.char], %4
+    mov qword[rax+Person.color], %5
+    %%fail:
 %endmacro
 
 segment .data
     winName: db "Rogueish 64",0
     format: db "Howdy",10,0
     font_file: db "font.ttf",0
+    test_msg: db "Has 'Label' component: %d",10,0
     measure_text: db "#",0
     print_num: db "%.6f",10,0
     sprint_msg: db "--==Rogueish 64==--",0
@@ -221,20 +234,31 @@ main:
     mov rdi, game_buffer
     call DrawRoom
 
-    ; call ClearBuffer
     mov qword[ent_list_end], entity_list
+
     ;allocate the character
     make_person 30,40,100,'@',0
     mov qword[hero_data], rax
-    mov qword[entity_list], rax
-    add qword[ent_list_end], 8; increment the end of the list thingy
+    test_boi:
+    mov rdi, rax
+
+    push rdi
+    mov rsi, 2
+    call AddComponent
+    pop rdi
+
 
     ;allocate the enemy
     make_person 40,20,100,'Z',1
-    mov rbx, qword[ent_list_end]
-    mov qword[rbx], rax
-    add qword[ent_list_end], 8
 
+    mov rdi, rax
+    mov rsi, 2 ; Label_id
+    call HasComponent
+    mov rsi,rax
+    mov rdi, test_msg
+    mov rax, 0
+    call printf
+    
     while_top:
     call WindowShouldClose
 
