@@ -4,14 +4,18 @@ segment .text
 extern realloc
 extern malloc
 extern printf
-;Entity* MakeEntity(int comp_id)
+; returns the address to a place in the entity_list.
+; The value there is where the entity *actually* is at.
+;Entity** MakeEntity(int comp_id)
 MakeEntity:
     push rbp
     mov rbp, rsp
 
     cmp rdi, 1
     je .person
-
+    cmp rdi, 2
+    je .label
+    
     jmp .none
     .person:
         mov rdi, Person_size
@@ -21,6 +25,14 @@ MakeEntity:
         ; set the size
         mov rbx, Person_size
 
+        jmp .all
+    .label:
+        mov rdi, Label_size
+        add rdi, 0x8
+        call malloc
+        mov qword[rax+Component.id],2
+        mov qword[rax+Label.text], sprint_msg
+        mov rbx, Label_size
         jmp .all
     .none:
         ;that component doesn't exist!
@@ -40,6 +52,7 @@ MakeEntity:
         ;TODO: fill in any holes in the list
         mov rbx, qword[ent_list_end]
         mov qword[rbx], rax
+        mov rax, rbx
         add qword[ent_list_end],0x8
 
     .end:
@@ -152,7 +165,6 @@ HasComponent:
     push rbp
     mov rbp, rsp
 
-    mov rax, 0
     mov rbx, rdi
     .top:
         cmp qword[rbx], rsi
@@ -160,9 +172,7 @@ HasComponent:
         cmp qword[rbx], 0
         je .fail
 
-        mov rcx, qword[rbx+Component.size]
         add rbx, qword[rbx+Component.size]
-        inc rax
         jmp .top
     .succ:
         mov rax, 1
@@ -170,6 +180,32 @@ HasComponent:
     .fail:
         mov rax, 0
         jmp .end
+    .end:
+
+    mov rsp,rbp
+    pop rbp
+    ret
+
+;Component*  GetComponent(Entity* ent, int comp_id)
+GetComponent:
+    push rbp
+    mov rbp, rsp
+
+    mov rbx, rdi
+    .top:
+        cmp qword[rbx+Component.id],0
+        je .fail
+
+        cmp qword[rbx+Component.id],rsi
+        je .found
+
+        add rbx, 0x8
+        jmp .top
+    .fail:
+        mov rax, 0
+        jmp .end
+    .found:
+        mov rax,rbx
     .end:
 
     mov rsp,rbp

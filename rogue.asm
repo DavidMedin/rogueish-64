@@ -37,26 +37,25 @@ endstruc
     call MakeEntity
     je %%fail ; Wow!
     ; mov qword[rax+Person.jump], rbx
-    mov qword[rax+Person.x], %1
-    mov qword[rax+Person.y], %2
-    mov qword[rax+Person.health], %3
-    mov qword[rax+Person.char], %4
-    mov qword[rax+Person.color], %5
+    mov rdx, qword[rax]
+    mov qword[rdx+Person.x], %1
+    mov qword[rdx+Person.y], %2
+    mov qword[rdx+Person.health], %3
+    mov qword[rdx+Person.char], %4
+    mov qword[rdx+Person.color], %5
     %%fail:
 %endmacro
 
 segment .data
     winName: db "Rogueish 64",0
-    format: db "Howdy",10,0
     font_file: db "font.ttf",0
-    test_msg: db "Has 'Label' component: %d",10,0
+    test_msg: db "Has component: %d",10,0
     measure_text: db "#",0
     print_num: db "%.6f",10,0
-    sprint_msg: db "--==Rogueish 64==--",0
+    sprint_msg: db "--==Rogueish 64==--",10,0
     window_x: dq 1200
     window_y: dq 1072
-    background: dd 0xff311d18
-    pallete: dd 0xff96ccda, 0xff678bbf
+    pallete: dd 0xff96ccda, 0xff678bbf,0xff311d18
     sixteen: dd 16.0
     move_wait: dq 0.1
     move_time_acc: dq 0.0
@@ -92,6 +91,7 @@ segment .text
     cmp al, 0
     je .%1_done
         mov rdx, qword[hero_data]
+        mov rdx,qword[rdx]
         mov rsi, [rdx+Person.x]
         mov rdx, [rdx+Person.y]
 
@@ -135,6 +135,7 @@ segment .text
             cmp rax, 2
             je .%1_hit ; if did something
             mov rax, [hero_data]
+            mov rax, qword[rax]
             mov rbx, [rsp+0x10]
             mov rcx, [rsp+0x8]
             mov qword[rax+Person.x],rbx
@@ -220,9 +221,6 @@ main:
     mov rdx,winName
     call InitWindow
 
-    mov rdi, format
-    call printf
-
     ; load font
     mov rdi, font_file
     mov rsi, 16
@@ -236,29 +234,38 @@ main:
 
     mov qword[ent_list_end], entity_list
 
+;   ===============Create Entities====================
     ;allocate the character
     make_person 30,40,100,'@',0
     mov qword[hero_data], rax
-    test_boi:
-    mov rdi, rax
 
-    push rdi
+    mov rdi, rdx ; rdx is from make_person
     mov rsi, 2
     call AddComponent
-    pop rdi
 
 
     ;allocate the enemy
     make_person 40,20,100,'Z',1
 
-    mov rdi, rax
-    mov rsi, 2 ; Label_id
+    mov rdi, rdx
+    mov rsi, 1 ; Label_id
     call HasComponent
     mov rsi,rax
     mov rdi, test_msg
     mov rax, 0
     call printf
-    
+
+    mov rdi, 2
+    call MakeEntity
+
+    mov rdi, qword[rax]
+    mov rsi, 2
+    call GetComponent
+    mov rdi, qword[rax+Label.text]
+    before:
+    mov rax, 0
+    call printf
+;====================================================
     while_top:
     call WindowShouldClose
 
@@ -307,7 +314,7 @@ main:
 
         call BeginDrawing
 
-        mov edi, dword[background]
+        mov edi, dword[pallete+2*0x4]
         call ClearBackground
 
         ;clear buffer
@@ -344,18 +351,28 @@ move_char_fail_msg: db "Attempted to move character out of bounds!",10,0
 DrawEntity:
     push rbp
     mov rbp,rsp
-
+    push rdi
     push rsi
-    mov rcx, rsi
-    mov rsi, [rcx+Person.x]
-    mov rdx, [rcx+Person.y]
-    call IndexBuffer
+    mov rdi, rsi
+    mov rsi, 1
+    call GetComponent
     pop rsi
-    mov bl, [rsi+Person.char]
-    mov byte[rax], bl
-    mov bl, [rsi+Person.color]
-    mov byte[rax+1], bl
-
+    pop rdi
+    cmp rax, 0
+    je .end
+        ; if this entity has a person component
+        ;TODO: Finish GetComponent
+        push rsi
+        mov rcx, rax
+        mov rsi, [rcx+Person.x]
+        mov rdx, [rcx+Person.y]
+        call IndexBuffer
+        pop rsi
+        mov bl, [rsi+Person.char]
+        mov byte[rax], bl
+        mov bl, [rsi+Person.color]
+        mov byte[rax+1], bl
+    .end:
     mov rsp,rbp
     pop rbp
     ret
@@ -373,9 +390,22 @@ FindEntity:
             mov rcx, qword[rbx]
             cmp rcx, 0; this is null
             je .nope
-            cmp [rcx+Person.x], rdi
+
+            push rdi
+            push rsi
+            push rbx
+            mov rdi, rcx
+            mov rsi, 1
+            call GetComponent
+            pop rbx
+            pop rsi
+            pop rdi
+            cmp rax, 0
+            je .nope
+            
+            cmp [rax+Person.x], rdi
             jne .nope
-            cmp [rcx+Person.y], rsi
+            cmp [rax+Person.y], rsi
             jne .nope
             jmp .found
             .nope:
@@ -403,25 +433,13 @@ DrawEntities:
         cmp rbx, qword[ent_list_end]
         jge .bot_loop
 
-        mov rcx, qword[rbx]
-        cmp qword[rcx], 1 ; 1=person
-        jne .end_process
-            push rbx
-            push rcx
-            mov rsi, qword[rcx+Person.x]
-            mov rdx, qword[rcx+Person.y]
-            call IndexBuffer
-            pop rcx
-            pop rbx
-            mov dl, byte[rcx+Person.char]
-            mov byte[rax], dl
-            mov dl, byte[rcx+Person.color]
-            mov byte[rax+1], dl
-        jmp .end_process
-        .not_person:
-
-        .end_process:
-
+        mov rsi, qword[rbx]
+        cmp rsi, 0
+        je .cont
+        push rbx
+        call DrawEntity
+        pop rbx
+        .cont:
         add rbx, 8
         jmp .top_loop
     .bot_loop:
@@ -558,12 +576,20 @@ CanMove:
     call FindEntity
     cmp rax, 0
     je .success
+    ;does it have the correct entity?
+    mov rdi, [rax]
+    push rax
+    mov rsi, 1
+    call GetComponent
+    pop rbx
+    cmp rax, 0
+    je .success
     ;entity is there
-    mov rbx, [rax]
-    cmp qword[rbx+Person.id], 1
-    jne .success
+    ; mov rbx, [rax]
+    ; cmp qword[rbx+Person.id], 1
+    ; jne .success
     pop rcx
-    mov [rcx], rax
+    mov [rcx], rbx
     jmp .no 
     .success:
         mov rax,1
