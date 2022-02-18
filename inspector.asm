@@ -18,10 +18,13 @@ CopyText:
     call IndexBuffer ; it just works
     mov r8, [rbp - 0x8]
     mov r9, [rbp - 0x10]
+    mov rbx,[rbp - 0x18]
 
     push 0; x ->  -0x20
     push 0; y -> -0x28
     
+    ; mov rbx, qword[rbp-0x18] ok wtf
+    push 0
     cmp rax,0
     jne .top
         .fail:
@@ -59,9 +62,10 @@ CopyText:
         add rax,2
         inc rbx
         inc qword[rbp-0x20] ; x
+        inc qword[rsp]
         jmp .top
     .end:
-    add rsp, 0x10
+    add rsp, 0x18
     pop rcx
     pop r9
     pop r8

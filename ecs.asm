@@ -15,13 +15,15 @@ MakeEntity:
     je .person
     cmp rdi, 2
     je .label
+    cmp rdi,3
+    je .position
     
     jmp .none
     .person:
         mov rdi, Person_size
         add rdi, 0x8 ; for the null pointer
         call malloc
-        mov qword[rax+Person.id], 1
+        mov qword[rax+Component.id], 1
         ; set the size
         mov rbx, Person_size
 
@@ -31,8 +33,16 @@ MakeEntity:
         add rdi, 0x8
         call malloc
         mov qword[rax+Component.id],2
-        mov qword[rax+Label.text], sprint_msg
+        mov qword[rax+Label.string], sprint_msg
         mov rbx, Label_size
+        jmp .all
+    .position:
+        mov rdi, Position_size
+        add rdi, 0x8
+        call malloc
+        mov qword[rax+Component.id],3
+        ; mov qword[rax+Position.x],0
+        mov rbx, Position_size
         jmp .all
     .none:
         ;that component doesn't exist!
@@ -104,9 +114,11 @@ AddComponent:
     je .person
     cmp rsi, 2
     je .label
+    cmp rsi, 3
+    je .position
     jmp .none
-    .person:
-        mov rsi, Person_size
+
+    .pre:
         add rsi, rbx ; realloc(ptr, Person_size + old_size)
         push rbx
         push r8
@@ -118,35 +130,41 @@ AddComponent:
         ;write to the person.
         mov rcx, rbx
         sub rcx, 0x8
+        ret
+        
+    .person:
+        mov rsi, Person_size
+        call .pre
         mov qword[rax+rcx+Component.id], 1
         ;write to size.
         mov qword[rax+rcx+Component.size], Person_size
-        mov qword[rax+rcx+Person.x], 0
-        mov qword[rax+rcx+Person.y], 0
         mov qword[rax+rcx+Person.health],0
         mov byte[rax+ rcx+Person.char], 0
         mov byte[rax+ rcx+Person.color], 0
 
         mov qword[rax+rcx+Person_size], 0
+        add rax, rcx
         jmp .end
     .label:
         mov rsi, Label_size
-        add rsi, rbx ; realloc(ptr, Person_size + old_size)
-        push rbx
-        push r8
-        call realloc
-        pop r8
-        mov qword[r8],rax
-        pop rbx ; old_size
-
-        ;write to the label.
-        mov rcx, rbx
-        sub rcx, 0x8
+        call .pre
         mov qword[rax+rcx+Component.id], 2
         ;write to size.
         mov qword[rax+rcx+Component.size], Label_size
-        mov qword[rax+rcx+Label.text], sprint_msg
+        mov qword[rax+rcx+Label.string], sprint_msg
         mov qword[rax+rcx+Label_size], 0
+        add rax, rcx
+        jmp .end
+
+    .position:
+        mov rsi, Person_size
+        call .pre
+        mov qword[rax+rcx+Component.id],3
+        mov qword[rax+rcx+Component.size], Position_size
+        mov qword[rax+rcx+Position.x],0
+        mov qword[rax+rcx+Position.y],0
+        mov qword[rax+rcx+Position_size],0
+        add rax, rcx
         jmp .end
     .none:
         mov rdi, AddComponent_no_match
@@ -190,7 +208,6 @@ HasComponent:
 GetComponent:
     push rbp
     mov rbp, rsp
-
     mov rbx, rdi
     .top:
         cmp qword[rbx+Component.id],0
@@ -199,7 +216,7 @@ GetComponent:
         cmp qword[rbx+Component.id],rsi
         je .found
 
-        add rbx, 0x8
+        add rbx, qword[rbx+Component.size]
         jmp .top
     .fail:
         mov rax, 0

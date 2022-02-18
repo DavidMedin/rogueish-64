@@ -1,5 +1,6 @@
 %include "inspector.asm"
 %include "ecs.asm"
+%include "draw.asm"
 %macro make_buffer 2
     dq %1,%2
     times %1*%2*2 db 0x20
@@ -7,19 +8,28 @@
 ; Enum ID
 ;   null -> 0
 ;   person  -> 1
-;   hero -> 2
+;   Label -> 2
+;   Position -> 3
 
 struc Component
     .id: resq 1
     .size: resq 1
 endstruc
+
+struc Position
+    .id: resq 1
+    .size: resq 1
+    .x: resq 1
+    .y: resq 1
+endstruc
+
 struc Person
     ;should be the same as Component
     .id: resq 1
     .size: resq 1
     
-    .x: resq 1
-    .y: resq 1
+    ; .x: resq 1
+    ; .y: resq 1
     
     .health: resq 1
     .char: resq 1
@@ -29,30 +39,34 @@ endstruc
 struc Label
     .id: resq 1
     .size: resq 1
-    .text: resq 1
+    .string: resq 1
 endstruc
 
 %macro make_person 5
     mov rdi, 1
     call MakeEntity
     je %%fail ; Wow!
-    ; mov qword[rax+Person.jump], rbx
     mov rdx, qword[rax]
-    mov qword[rdx+Person.x], %1
-    mov qword[rdx+Person.y], %2
+    ; mov qword[rdx+Person.x], %1
+    ; mov qword[rdx+Person.y], %2
     mov qword[rdx+Person.health], %3
     mov qword[rdx+Person.char], %4
     mov qword[rdx+Person.color], %5
+
+    mov rdi, rdx
+    mov rsi, 3
+    call AddComponent
+    mov qword[rax+Position.x], %1
+    mov qword[rax+Position.y], %2
     %%fail:
 %endmacro
 
 segment .data
     winName: db "Rogueish 64",0
     font_file: db "font.ttf",0
-    test_msg: db "Has component: %d",10,0
     measure_text: db "#",0
     print_num: db "%.6f",10,0
-    sprint_msg: db "--==Rogueish 64==--",10,0
+    sprint_msg: db "--==Rogueish 64==--",0
     window_x: dq 1200
     window_y: dq 1072
     pallete: dd 0xff96ccda, 0xff678bbf,0xff311d18
@@ -74,16 +88,6 @@ segment .bss
 segment .text
 
 
-%macro push_font 1
-    push qword [%1+0x28]
-    push qword [%1+0x20]
-    push qword [%1+0x18]
-    push qword [%1+0x10]
-    push qword [%1+0x8]
-    push qword [%1]
-%endmacro
-
-
 %macro move_char 4
     push r11
     mov rdi, %2
@@ -91,14 +95,21 @@ segment .text
     cmp al, 0
     je .%1_done
         mov rdx, qword[hero_data]
-        mov rdx,qword[rdx]
-        mov rsi, [rdx+Person.x]
-        mov rdx, [rdx+Person.y]
+        ;conserve ---
+        push rdx ; hero's data
+        ; args ---
+        mov rdi, rdx
+        mov rsi, 3
+        call GetComponent
+        pop rdx
+        cmp rax, 0
+        je .%1_clean_done
+
+        mov rsi, [rax+Position.x]
+        mov rdx, [rax+Position.y]
 
         ; update the buffer
         mov rdi, game_buffer
-        ; mov rcx, rsi
-        ; mov r8, rdx
         cmp qword[rsp],1
         jne .%1_not_shifting
             push rdx
@@ -134,21 +145,29 @@ segment .text
         .%1_succ: ; not failed
             cmp rax, 2
             je .%1_hit ; if did something
-            mov rax, [hero_data]
-            mov rax, qword[rax]
+            ; mov rax, [hero_data]
+            mov rdi, qword[hero_data]
+            mov rsi, 3
+            call GetComponent
             mov rbx, [rsp+0x10]
             mov rcx, [rsp+0x8]
-            mov qword[rax+Person.x],rbx
-            mov qword[rax+Person.y],rcx
+            mov qword[rax+Position.x],rbx
+            mov qword[rax+Position.y],rcx
             jmp .%1_clean_done
         .%1_hit:
             ; attack I guess
-            ;TODO: only attack if has correct component
             cmp qword[rsp], 0
             je .%1_clean_done
-            ;has data (not a wall)
+
             mov rax, qword[rsp] ; rax = place in ent_list
-            mov rcx, qword[rax] ; rcx = entity data
+            mov rdi, qword[rax]
+            mov rsi, 1
+            call GetComponent
+            cmp rax, 0
+            je .%1_clean_done
+
+            ;Is a person
+            mov rcx, rax
             sub qword[rcx+Person.health], 10
             cmp qword[rcx+Person.health], 0
             jg .%1_not_dead
@@ -163,6 +182,7 @@ segment .text
                 cmp qword[ent_list_end], rax
                 jne .%1_clean_done
                     ;is the last in the list
+                    
                     sub qword[ent_list_end], 0x8
             .%1_not_dead:
         .%1_clean_done:
@@ -236,35 +256,20 @@ main:
 
 ;   ===============Create Entities====================
     ;allocate the character
-    make_person 30,40,100,'@',0
+    make_person 20,40,100,'@',0
     mov qword[hero_data], rax
-
-    mov rdi, rdx ; rdx is from make_person
-    mov rsi, 2
-    call AddComponent
-
 
     ;allocate the enemy
     make_person 40,20,100,'Z',1
 
-    mov rdi, rdx
-    mov rsi, 1 ; Label_id
-    call HasComponent
-    mov rsi,rax
-    mov rdi, test_msg
-    mov rax, 0
-    call printf
-
-    mov rdi, 2
+    mov rdi, 2; Make Label
     call MakeEntity
-
     mov rdi, qword[rax]
-    mov rsi, 2
-    call GetComponent
-    mov rdi, qword[rax+Label.text]
-    before:
-    mov rax, 0
-    call printf
+    mov rsi, 3 ; Add Position
+    call AddComponent
+    mov qword[rax+Position.x], 1
+    mov qword[rax+Position.y], 5
+
 ;====================================================
     while_top:
     call WindowShouldClose
@@ -347,36 +352,6 @@ main:
     ret
 move_char_fail_msg: db "Attempted to move character out of bounds!",10,0
 
-;void DrawEntity(Buffer* buffer,Entity* entity)
-DrawEntity:
-    push rbp
-    mov rbp,rsp
-    push rdi
-    push rsi
-    mov rdi, rsi
-    mov rsi, 1
-    call GetComponent
-    pop rsi
-    pop rdi
-    cmp rax, 0
-    je .end
-        ; if this entity has a person component
-        ;TODO: Finish GetComponent
-        push rsi
-        mov rcx, rax
-        mov rsi, [rcx+Person.x]
-        mov rdx, [rcx+Person.y]
-        call IndexBuffer
-        pop rsi
-        mov bl, [rsi+Person.char]
-        mov byte[rax], bl
-        mov bl, [rsi+Person.color]
-        mov byte[rax+1], bl
-    .end:
-    mov rsp,rbp
-    pop rbp
-    ret
-
 ;rax                 rdi   rsi
 ;entity* FindEntity(int x,int y)
 FindEntity:
@@ -395,7 +370,7 @@ FindEntity:
             push rsi
             push rbx
             mov rdi, rcx
-            mov rsi, 1
+            mov rsi, 3
             call GetComponent
             pop rbx
             pop rsi
@@ -403,9 +378,9 @@ FindEntity:
             cmp rax, 0
             je .nope
             
-            cmp [rax+Person.x], rdi
+            cmp [rax+Position.x], rdi
             jne .nope
-            cmp [rax+Person.y], rsi
+            cmp [rax+Position.y], rsi
             jne .nope
             jmp .found
             .nope:
@@ -423,131 +398,6 @@ FindEntity:
     pop rbp
     ret
 
-; void DrawEntities(Buffer* buffer)
-DrawEntities:
-    push rbp
-    mov rbp, rsp
-
-    mov rbx, entity_list
-    .top_loop:
-        cmp rbx, qword[ent_list_end]
-        jge .bot_loop
-
-        mov rsi, qword[rbx]
-        cmp rsi, 0
-        je .cont
-        push rbx
-        call DrawEntity
-        pop rbx
-        .cont:
-        add rbx, 8
-        jmp .top_loop
-    .bot_loop:
-
-    mov rsp, rbp
-    pop rbp
-    ret
-
-; void ClearBuffer(Buffer* buffer)
-ClearBuffer:
-    push rbp
-    mov rbp, rsp
-
-    mov rbx, 0
-    .top_y:
-        cmp rbx,[rdi+0x8]
-        jge .bot_y 
-        mov rcx, 0
-        .top_x:
-            cmp rcx,[rdi+0]
-            jge .bot_x
-
-            mov rsi, rcx
-            mov rdx, rbx
-            call IndexBuffer
-            mov byte[rax], 0x20 ; I think 0x20 is ' '
-
-            inc rcx
-            jmp .top_x
-            .bot_x:
-        inc rbx
-        jmp .top_y
-        .bot_y:
-
-    mov rsp, rbp
-    pop rbp
-    ret
-
-;                   rdi
-; void DrawRoom(Buffer* buffer)
-DrawRoom:
-    push rbp
-    mov rbp, rsp
-    push rdi
-    ; write to the buffer
-    mov eax,0
-    top_write_y:
-        cmp eax,[rdi + 8]
-        je bot_write_y
-
-        mov ebx,0
-        top_write_x:
-            cmp ebx,[rdi + 0]
-            je bot_write_x
-
-            ; if (eax == 0 || ebx == 0 || eax == (buff_size_x - 1) || ebx == (buff_size_y - 1) )
-            cmp eax, 0
-            je succ
-            cmp ebx,0
-            je succ
-            mov ecx, [rdi + 8]
-            dec ecx
-            cmp eax,ecx
-            je succ
-            mov ecx, [rdi + 0]
-            dec ecx
-            cmp ebx,ecx
-            je succ
-
-            mov r8d,1
-            jmp write_fail
-            succ:
-            mov r8d, 0
-            write_fail:
-
-                push rax
-                push rbx
-                push r8
-                mov rdi, rdi
-                mov esi, ebx
-                mov edx, eax
-                call IndexBuffer
-                pop r8
-                cmp r8d,0
-                jne write_end
-                mov byte[rax], '#'
-                write_end:
-                mov byte[rax+1], 1
-                pop rbx
-                pop rax
-        
-            inc ebx
-            jmp top_write_x
-        bot_write_x:
-
-        inc eax
-        jmp top_write_y
-    bot_write_y:
-    ; mov rsi, 1
-    ; mov rdx, 1
-    ; mov rcx, sprint_msg
-    ; mov r8, 5
-    ; mov r9, 5
-    ; call CopyText
-    pop rdi
-    mov rsp, rbp
-    pop rbp
-    ret
 
 ;(0:error, 1:yes, 2:no) if hit!=0, then we *could* move
 ;if returns 1 or 0, rcx was not written too.
@@ -711,98 +561,5 @@ IndexBuffer:
     pop rdi
 
     mov rsp, rbp
-    pop rbp
-    ret
-
-;void DrawBuffer(Font* font)
-DrawBuffer:
-    push rbp
-    mov rbp, rsp
-    sub rsp, 0xc
-    push_font font
-
-    mov r8,0
-    top_y:
-        cmp r8d, dword [game_buffer + 8]
-        je end_y
-        mov r9, 0
-
-        ;for x
-        top_x:
-            cmp r9d, dword[game_buffer + 0]
-            je end_x
-
-            ;---------------
-            sub rsp,8
-            mov eax, [char_spacing]
-            cdq
-            mul r9d
-            cvtsi2ss xmm0, eax
-            movss [rsp], xmm0
-            ; push (x * char_spacing) 
-            ;-------------- 
-            mov eax,[char_spacing]
-            cdq
-            mul r8d
-            cvtsi2ss xmm0, eax
-            movss [rsp+4], xmm0
-            ; push (char_spacing * y)
-            ;-------------
-            movq xmm0, [rsp]
-            add rsp,8
-
-            ;-----------
-            ;TODO: maybe should be moved closer to function
-            movss xmm1, [sixteen]
-            ;------------
-            mov eax, [game_buffer + 0]
-            cdq
-            mul r8d ; y * buff_size_x
-            shl rax, 1 ; multiply by two to get the number of bytes (char, color index)
-            mov ebx,eax ; ebx = eax
-            ; ebx = 16 * char_count_x * y
-            ;-----------
-
-            mov eax, r9d
-            push  2
-            cdq
-            mul dword [rsp]
-            add rax, 16 ; becuase of the beginning of the struct
-            add rsp, 8
-            ; eax = x * 2 + 8 (becuase the second byte is color)
-            ;-----------
-
-            xor rdi,rdi;       buffer  +  y-off + x-off
-            mov dil, byte [game_buffer + ebx   +  eax]
-            mov bl, byte[game_buffer + ebx + eax + 1]
-            xor rax,rax
-            mov al, bl
-            xor rbx,rbx
-            mov bl,al
-            mov dword [rbp-0x8], r8d
-            mov dword [rbp-0xc], r9d
-
-            xor rsi,rsi
-            xor rax,rax
-            mov rax, rbx
-            cqo
-            mov r8, 4
-            mul r8
-            mov esi, [pallete + rax]
-
-            call DrawTextCodepoint
-
-            mov r8d, dword [rbp-0x8]
-            mov r9d, dword [rbp-0xc]
-
-            inc r9d
-            jmp top_x
-        end_x:
-        inc r8d
-        jmp top_y
-    end_y:
-    add rsp,48 ; not really needed
-
-    mov rsp,rbp
     pop rbp
     ret
