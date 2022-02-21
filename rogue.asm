@@ -161,8 +161,10 @@ segment .text
 
             mov rax, qword[rsp] ; rax = place in ent_list
             mov rdi, qword[rax]
+            push rax
             mov rsi, 1
             call GetComponent
+            pop rbx
             cmp rax, 0
             je .%1_clean_done
 
@@ -172,13 +174,12 @@ segment .text
             cmp qword[rcx+Person.health], 0
             jg .%1_not_dead
                 ;dead
-                mov rdi, rcx
-                push rax
+                .%1kill:
+                mov rdi, qword[rbx]
                 call free
-                pop rax
-                mov qword[rax], 0
+                mov qword[rbx], 0
                 
-                add rax, 0x8
+                add rbx, 0x8
                 cmp qword[ent_list_end], rax
                 jne .%1_clean_done
                     ;is the last in the list
