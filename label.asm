@@ -8,15 +8,30 @@ Label_Move_Up:
         ;of whom have both position and label
     mov rbx, entity_list
     .each_top:
-        cmp ebx, qword[ent_list_end]
+        cmp rbx, qword[ent_list_end]
         je .end
         push rbx
-        mov rdi, rbx
+        cmp qword[rbx], 0
+        je .cont
+        mov rdi, qword[rbx]
         mov rsi, 2
         call GetComponent
         cmp rax, 0
-        
-        add ebx, 0x8
+        je .cont
+        cmp qword[rax+Label.can_rise], 0
+        je .cont
+        push rax
+        mov rdi, qword[rbp-0x8]
+        mov rdi, [rdi]
+        mov rsi, 3
+        call GetComponent
+        cmp rax, 0
+        je .cont
+            ; more code here
+            dec qword[rax+Position.y]
+        .cont:
+        pop rbx
+        add rbx, 0x8
         jmp .each_top
     .end:
     mov rsp, rbp

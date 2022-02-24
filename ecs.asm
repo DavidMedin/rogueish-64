@@ -34,6 +34,8 @@ MakeEntity:
         call malloc
         mov qword[rax+Component.id],2
         mov qword[rax+Label.string], sprint_msg
+        mov qword[rax+Label.can_rise], 0
+        mov qword[rax+Label.free_str], 0
         mov rbx, Label_size
         jmp .all
     .position:
@@ -152,6 +154,8 @@ AddComponent:
         ;write to size.
         mov qword[rax+rcx+Component.size], Label_size
         mov qword[rax+rcx+Label.string], sprint_msg
+        mov qword[rax+rcx+Label.can_rise], 0
+        mov qword[rax+rcx+Label.free_str], 0
         mov qword[rax+rcx+Label_size], 0
         add rax, rcx
         jmp .end

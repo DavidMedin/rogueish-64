@@ -1,6 +1,7 @@
 %include "inspector.asm"
 %include "ecs.asm"
 %include "draw.asm"
+%include "label.asm"
 %macro make_buffer 2
     dq %1,%2
     times %1*%2*2 db 0x20
@@ -40,6 +41,8 @@ struc Label
     .id: resq 1
     .size: resq 1
     .string: resq 1
+    .free_str: resq 1
+    .can_rise: resq 1
 endstruc
 
 %macro make_person 5
@@ -67,14 +70,15 @@ segment .data
     measure_text: db "#",0
     print_num: db "%.6f",10,0
     sprint_msg: db "--==Rogueish 64==--",0
+    number_fmt: db "%d",0
     window_x: dq 1200
     window_y: dq 1072
     pallete: dd 0xff96ccda, 0xff678bbf,0xff311d18
     sixteen: dd 16.0
-    move_wait: dq 0.1
-    move_time_acc: dq 0.0
+    tick_wait: dq 0.1
+    tick_acc: dq 0.0
     zero_double: dq 0.0
-    move_check: db 0
+    time_check: db 0
 
     char_spacing: dd 12
     game_buffer: make_buffer 75,67
@@ -164,13 +168,61 @@ segment .text
             push rax
             mov rsi, 1
             call GetComponent
-            pop rbx
+            ; pop rbx
+            mov rbx,[rsp]
+            pop rcx;TODO: I hate this so much
             cmp rax, 0
             je .%1_clean_done
+            push rcx;TODO: and this too
 
             ;Is a person
             mov rcx, rax
             sub qword[rcx+Person.health], 10
+            
+            push rbx
+            push rax
+            push rcx
+            ;create damage label
+            mov rdi, 2
+            call MakeEntity
+            mov rdi, [rax]
+            push rdi
+            sub rsp, 0x8; asprintf wants 16-byte aligned
+            mov rdi, rsp
+            ;use sprintf
+            mov rsi, number_fmt
+            mov rdx, 10
+            mov rax, 0
+            call asprintf
+            
+            mov rbx, qword[rsp+0x8]
+            mov rax, [rsp]
+            mov qword[rbx+Label.string], rax
+            add rsp, 0x8
+
+            pop rdi
+            ; mov qword[rdi+Label.can_rise], 1
+            mov rsi, 3
+            call AddComponent
+            mov rbx, [rsp+0x20]
+            mov rbx, [rbx]
+            push rax
+            mov rdi, rbx
+            mov rsi, 3
+            call GetComponent
+            pop rbx
+            mov rcx, [rax+Position.x]
+            mov [rbx+Position.x],  rcx
+            mov rcx, [rax+Position.y]
+            mov [rbx+Position.y], rcx
+
+
+            ;===========================
+            pop rcx
+            pop rax
+            pop rbx
+            add rsp, 8
+            mov rdi, qword[rax]
             cmp qword[rcx+Person.health], 0
             jg .%1_not_dead
                 ;dead
@@ -190,8 +242,8 @@ segment .text
             ; clean up timer
             add rsp, 8 ; clean up pointer given to CanMove
             movsd xmm0, [zero_double]
-            movsd [move_time_acc],xmm0
-            mov byte[move_check], 0
+            movsd [tick_acc],xmm0
+            mov byte[time_check], 0
             add rsp, 0x10
     .%1_done:
     pop r11
@@ -213,6 +265,7 @@ extern IsKeyDown
 extern GetFrameTime
 extern malloc
 extern free
+extern asprintf
 
 ;arguments -> rdi,rsi,rdx,rcx,r8,r9,stack
 main:
@@ -286,23 +339,23 @@ main:
         ;   if key is down, set ready var to 0
         call GetFrameTime
         cvtps2pd xmm0,xmm0 ;convert the float to double
-        addsd xmm0,[move_time_acc]
-        movsd qword[move_time_acc], xmm0
-        movsd xmm0,[move_time_acc]
+        addsd xmm0,[tick_acc]
+        movsd qword[tick_acc], xmm0
+        movsd xmm0,[tick_acc]
 
-        comisd xmm0,[move_wait]
+        comisd xmm0,[tick_wait]
         ;greater than -> zf,pf,cf == 0
         jz .set_end_compare
         jp .set_end_compare
         jb .set_end_compare
 
         .set_move_byte:
-            mov byte[move_check], 1
+            mov byte[time_check], 1
         .set_end_compare:
         
-        cmp byte[move_check],0
-        je done_input
-
+        cmp byte[time_check],0
+        je .done_tick
+            ;key input stuff
             mov r11,0
             mov rdi, 340 ; Left Shift
             call IsKeyDown
@@ -315,7 +368,10 @@ main:
             move_char s,      83,      0,1
             move_char a,      65,      -1,0
             move_char d,      68,      1,0
-        done_input: ; if not pressed or way is blocked
+
+            ;update damage indicator
+            call Label_Move_Up
+        .done_tick:
 
 
         call BeginDrawing
