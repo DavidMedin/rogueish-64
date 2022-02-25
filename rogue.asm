@@ -433,8 +433,7 @@ Move_Char:
             mov rdi, rsp
             ;use sprintf
             mov rsi, number_fmt
-            mov rdx, [test_counter]
-            inc qword[test_counter]
+            mov rdx, 10
             mov rax, 0
             call asprintf
             ;write string
