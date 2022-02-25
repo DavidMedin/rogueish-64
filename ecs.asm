@@ -232,3 +232,29 @@ GetComponent:
     mov rsp,rbp
     pop rbp
     ret
+
+;ent is a pointer into the entity list (should be entity_list+something)
+;void DestroyEntity(Entity** ent)
+DestroyEntity:
+    push rbp
+    mov rbp, rsp
+
+    push rdi
+    mov rdi, qword[rdi]
+    call free
+    
+    pop rdi
+    mov qword[rdi], 0
+    add rdi, 0x8
+    cmp qword[ent_list_end], rdi
+    jne .done
+        ;is the last in the list
+        .while:
+            sub qword[ent_list_end], 0x8
+            mov rsi, [ent_list_end]
+            cmp qword[rsi-0x8],0
+            je .while
+    .done:
+    mov rsp, rbp
+    pop rbp
+    ret

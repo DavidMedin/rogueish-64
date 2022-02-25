@@ -64,6 +64,17 @@ endstruc
     %%fail:
 %endmacro
 
+
+%macro move_char 3
+    push r11
+    mov rdi, %1
+    mov rsi, %2
+    mov rdx, %3
+    mov rcx, r11
+    call Move_Char
+    pop r11
+%endmacro
+
 segment .data
     winName: db "Rogueish 64",0
     font_file: db "font.ttf",0
@@ -80,6 +91,10 @@ segment .data
     zero_double: dq 0.0
     time_check: db 0
 
+    ;====DEBUG
+    test_counter: dq 0
+    ;======
+
     char_spacing: dd 12
     game_buffer: make_buffer 75,67
     entity_list: times 256 dq 0
@@ -92,162 +107,6 @@ segment .bss
 segment .text
 
 
-%macro move_char 4
-    push r11
-    mov rdi, %2
-    call IsKeyDown
-    cmp al, 0
-    je .%1_done
-        mov rdx, qword[hero_data]
-        ;conserve ---
-        push rdx ; hero's data
-        ; args ---
-        mov rdi, rdx
-        mov rsi, 3
-        call GetComponent
-        pop rdx
-        cmp rax, 0
-        je .%1_clean_done
-
-        mov rsi, [rax+Position.x]
-        mov rdx, [rax+Position.y]
-
-        ; update the buffer
-        mov rdi, game_buffer
-        cmp qword[rsp],1
-        jne .%1_not_shifting
-            push rdx
-            ; is pressing shift
-            mov rax,9
-            cqo
-            mov rbx,%3
-            mul rbx
-            add rsi,rax
-            mov rax,9
-            cqo
-            mov rbx,%4
-            mul rbx
-            pop rdx
-            add rdx,rax
-        .%1_not_shifting:
-        add rsi, %3
-        add rdx, %4
-        push rsi
-        push rdx
-        ; sub rsp, 8 ;| -> Just to give CanMove a
-        push 69
-        mov rcx,rsp;| valid address.
-        call CanMove
-        ; add rsp,8
-
-        cmp rax, 0
-        jne  .%1_succ ; if failed
-            ; fail!
-            mov rdi, move_char_fail_msg
-            call printf
-            jmp .%1_clean_done
-        .%1_succ: ; not failed
-            cmp rax, 2
-            je .%1_hit ; if did something
-            ; mov rax, [hero_data]
-            mov rdi, qword[hero_data]
-            mov rsi, 3
-            call GetComponent
-            mov rbx, [rsp+0x10]
-            mov rcx, [rsp+0x8]
-            mov qword[rax+Position.x],rbx
-            mov qword[rax+Position.y],rcx
-            jmp .%1_clean_done
-        .%1_hit:
-            ; attack I guess
-            cmp qword[rsp], 0
-            je .%1_clean_done
-
-            mov rax, qword[rsp] ; rax = place in ent_list
-            mov rdi, qword[rax]
-            push rax
-            mov rsi, 1
-            call GetComponent
-            ; pop rbx
-            mov rbx,[rsp]
-            pop rcx;TODO: I hate this so much
-            cmp rax, 0
-            je .%1_clean_done
-            push rcx;TODO: and this too
-
-            ;Is a person
-            mov rcx, rax
-            sub qword[rcx+Person.health], 10
-            
-            push rbx
-            push rax
-            push rcx
-            ;create damage label
-            mov rdi, 2
-            call MakeEntity
-            mov rdi, [rax]
-            push rdi
-            sub rsp, 0x8; asprintf wants 16-byte aligned
-            mov rdi, rsp
-            ;use sprintf
-            mov rsi, number_fmt
-            mov rdx, 10
-            mov rax, 0
-            call asprintf
-            
-            mov rbx, qword[rsp+0x8]
-            mov rax, [rsp]
-            mov qword[rbx+Label.string], rax
-            add rsp, 0x8
-
-            pop rdi
-            ; mov qword[rdi+Label.can_rise], 1
-            mov rsi, 3
-            call AddComponent
-            mov rbx, [rsp+0x20]
-            mov rbx, [rbx]
-            push rax
-            mov rdi, rbx
-            mov rsi, 3
-            call GetComponent
-            pop rbx
-            mov rcx, [rax+Position.x]
-            mov [rbx+Position.x],  rcx
-            mov rcx, [rax+Position.y]
-            mov [rbx+Position.y], rcx
-
-
-            ;===========================
-            pop rcx
-            pop rax
-            pop rbx
-            add rsp, 8
-            mov rdi, qword[rax]
-            cmp qword[rcx+Person.health], 0
-            jg .%1_not_dead
-                ;dead
-                .%1kill:
-                mov rdi, qword[rbx]
-                call free
-                mov qword[rbx], 0
-                
-                add rbx, 0x8
-                cmp qword[ent_list_end], rax
-                jne .%1_clean_done
-                    ;is the last in the list
-                    
-                    sub qword[ent_list_end], 0x8
-            .%1_not_dead:
-        .%1_clean_done:
-            ; clean up timer
-            add rsp, 8 ; clean up pointer given to CanMove
-            movsd xmm0, [zero_double]
-            movsd [tick_acc],xmm0
-            mov byte[time_check], 0
-            add rsp, 0x10
-    .%1_done:
-    pop r11
-%endmacro
 
 global main
 extern InitWindow
@@ -364,13 +223,16 @@ main:
                 mov r11,1; signifies shift is down
             .shift_not_down:            
             ;     |label name|key num|direction|
-            move_char w,      87,      0,-1
-            move_char s,      83,      0,1
-            move_char a,      65,      -1,0
-            move_char d,      68,      1,0
+            move_char       87,      0,-1
+            move_char       83,      0,1
+            move_char       65,      -1,0
+            move_char       68,      1,0
 
-            ;update damage indicator
-            call Label_Move_Up
+            cmp byte[time_check], 0
+            jne .done_tick
+                call OnTick
+            ; ;update damage indicator
+            ; call Label_Move_Up
         .done_tick:
 
 
@@ -408,6 +270,15 @@ main:
     pop rbp
     ret
 move_char_fail_msg: db "Attempted to move character out of bounds!",10,0
+
+
+OnTick:
+    push rbp
+    mov rbp, rsp
+        call Label_Move_Up
+    mov rsp, rbp
+    pop rbp
+    ret
 
 ;rax                 rdi   rsi
 ;entity* FindEntity(int x,int y)
@@ -452,6 +323,172 @@ FindEntity:
         mov rax, rbx
         .end:
     mov rsp,rbp
+    pop rbp
+    ret
+
+
+;void Move_Char(key,x,  y,fast?)
+Move_Char:
+    push rbp
+    mov rbp, rsp
+    push rsi
+    push rdx
+    push rcx
+    ; mov rdi, %2
+    call IsKeyDown
+    cmp al, 0
+    je .done
+        mov rdx, qword[hero_data]
+        ;conserve ---
+        push rdx ; hero's data
+        ; args ---
+        mov rdi, rdx
+        mov rsi, 3
+        call GetComponent
+        pop rdx
+        cmp rax, 0
+        je .clean_done
+
+        mov rsi, [rax+Position.x]
+        mov rdx, [rax+Position.y]
+
+        ; update the buffer
+        mov rdi, game_buffer
+        cmp qword[rbp-0x18],1
+        jne .not_shifting
+            push rdx
+            ; is pressing shift
+            mov rax,9
+            cqo
+            mov rbx,[rbp-0x8]
+            mul rbx
+            add rsi,rax
+            mov rax,9
+            cqo
+            mov rbx,[rbp-0x10]
+            mul rbx
+            pop rdx
+            add rdx,rax
+        .not_shifting:
+        add rsi, [rbp-0x8]
+        add rdx, [rbp-0x10]
+        push rsi
+        push rdx
+        ; sub rsp, 8 ;| -> Just to give CanMove a
+        push 69
+        mov rcx,rsp;| valid address.
+        call CanMove
+        ; add rsp,8
+
+        cmp rax, 0
+        jne  .succ ; if failed
+            ; fail!
+            mov rdi, move_char_fail_msg
+            call printf
+            jmp .clean_done
+        .succ: ; not failed
+            cmp rax, 2
+            je .hit ; if did something
+            ; mov rax, [hero_data]
+            mov rdi, qword[hero_data]
+            mov rsi, 3
+            call GetComponent
+            mov rbx, [rsp+0x10]
+            mov rcx, [rsp+0x8]
+            mov qword[rax+Position.x],rbx
+            mov qword[rax+Position.y],rcx
+            jmp .clean_done
+        .hit:
+            ; attack I guess
+            cmp qword[rsp], 0
+            je .clean_done
+
+            mov rax, qword[rsp] ; rax = place in ent_list
+            mov rdi, qword[rax]
+            push rax
+            mov rsi, 1
+            call GetComponent
+            ; pop rbx
+            mov rbx,[rsp]
+            pop rcx;TODO: I hate this so much
+            cmp rax, 0
+            je .clean_done
+            push rcx;TODO: and this too
+
+            ;Is a person
+            mov rcx, rax
+            sub qword[rcx+Person.health], 10
+            
+            push rbx
+            push rax
+            push rcx
+            ;create damage label
+            mov rdi, 2
+            call MakeEntity
+            mov rdi, [rax]
+            mov qword[rdi+Label.can_rise], 1
+
+            push rdi
+            sub rsp, 0x10; asprintf wants 16-byte aligned
+            mov rdi, rsp
+            ;use sprintf
+            mov rsi, number_fmt
+            mov rdx, [test_counter]
+            inc qword[test_counter]
+            mov rax, 0
+            call asprintf
+            ;write string
+            mov rbx, qword[rsp+0x10]
+            mov rax, [rsp]
+            mov qword[rbx+Label.string], rax
+            add rsp, 0x10
+
+            pop rdi
+            mov rsi, 3
+            call AddComponent
+            mov rbx, [rsp+0x20]
+            mov rbx, [rbx]
+            push rax
+            mov rdi, rbx
+            mov rsi, 3
+            call GetComponent
+            pop rbx
+            mov rcx, [rax+Position.x]
+            mov [rbx+Position.x],  rcx
+            mov rcx, [rax+Position.y]
+            mov [rbx+Position.y], rcx
+
+
+            ;===========================
+            pop rcx
+            pop rax
+            pop rbx
+            add rsp, 8
+            mov rdi, qword[rax]
+            cmp qword[rcx+Person.health], 0
+            jg .not_dead
+                ;dead
+                ; .kill:
+                mov rdi, qword[rbx]
+                call free
+                mov qword[rbx], 0
+                
+                add rbx, 0x8
+                cmp qword[ent_list_end], rax
+                jne .clean_done
+                    ;is the last in the list
+                    
+                    sub qword[ent_list_end], 0x8
+            .not_dead:
+        .clean_done:
+            ; clean up timer
+            add rsp, 8 ; clean up pointer given to CanMove
+            movsd xmm0, [zero_double]
+            movsd [tick_acc],xmm0
+            mov byte[time_check], 0
+            add rsp, 0x28 ;+0x10
+    .done:
+    mov rsp, rbp
     pop rbp
     ret
 

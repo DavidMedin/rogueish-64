@@ -7,10 +7,11 @@ Label_Move_Up:
     ; Dec the y value of the position component
         ;of whom have both position and label
     mov rbx, entity_list
+    push rbx
     .each_top:
         cmp rbx, qword[ent_list_end]
-        je .end
-        push rbx
+        jge .end
+        mov qword[rbp-0x8], rbx
         cmp qword[rbx], 0
         je .cont
         mov rdi, qword[rbx]
@@ -20,7 +21,7 @@ Label_Move_Up:
         je .cont
         cmp qword[rax+Label.can_rise], 0
         je .cont
-        push rax
+        ; push rax
         mov rdi, qword[rbp-0x8]
         mov rdi, [rdi]
         mov rsi, 3
@@ -29,11 +30,18 @@ Label_Move_Up:
         je .cont
             ; more code here
             dec qword[rax+Position.y]
+            cmp qword[rax+Position.y], 0
+            jge .cont
+                ;out of bounds! kill me
+                mov rdi, [rbp-0x8]
+                call DestroyEntity
         .cont:
-        pop rbx
+        ; pop rbx
+        mov rbx, [rbp-0x8]
         add rbx, 0x8
         jmp .each_top
     .end:
+    add rsp, 0x8
     mov rsp, rbp
     pop rbp
     ret
