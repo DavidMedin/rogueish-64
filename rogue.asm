@@ -75,6 +75,8 @@ endstruc
     pop r11
 %endmacro
 
+
+
 segment .data
     winName: db "Rogueish 64",0
     font_file: db "font.ttf",0
@@ -84,16 +86,12 @@ segment .data
     number_fmt: db "%d",0
     window_x: dq 1200
     window_y: dq 1072
-    pallete: dd 0xff96ccda, 0xff678bbf,0xff311d18
+    pallete: dd 0xff96ccda, 0xff678bbf,0xff311d18,0xff6d6ef
     sixteen: dd 16.0
     tick_wait: dq 0.1
     tick_acc: dq 0.0
     zero_double: dq 0.0
     time_check: db 0
-
-    ;====DEBUG
-    test_counter: dq 0
-    ;======
 
     char_spacing: dd 12
     game_buffer: make_buffer 75,67
@@ -175,13 +173,13 @@ main:
     ;allocate the enemy
     make_person 40,20,100,'Z',1
 
-    mov rdi, 2; Make Label
-    call MakeEntity
-    mov rdi, qword[rax]
-    mov rsi, 3 ; Add Position
-    call AddComponent
-    mov qword[rax+Position.x], 1
-    mov qword[rax+Position.y], 5
+    ;mov rdi, 2; Make Label
+    ;call MakeEntity
+    ;mov rdi, qword[rax]
+    ;mov rsi, 3 ; Add Position
+    ;call AddComponent
+    ;mov qword[rax+Position.x], 1
+    ;mov qword[rax+Position.y], 5
 
 ;====================================================
     while_top:
@@ -410,10 +408,10 @@ Move_Char:
             call GetComponent
             ; pop rbx
             mov rbx,[rsp]
-            pop rcx;TODO: I hate this so much
+            pop rcx
             cmp rax, 0
             je .clean_done
-            push rcx;TODO: and this too
+            push rcx
 
             ;Is a person
             mov rcx, rax
@@ -441,6 +439,7 @@ Move_Char:
             mov rax, [rsp]
             mov qword[rbx+Label.string], rax
             add rsp, 0x10
+            mov qword[rbx+Label.free_str], 1
 
             pop rdi
             mov rsi, 3
@@ -468,16 +467,18 @@ Move_Char:
             jg .not_dead
                 ;dead
                 ; .kill:
-                mov rdi, qword[rbx]
-                call free
-                mov qword[rbx], 0
+                ; mov rdi, qword[rbx]
+                ; call free
+                ; mov qword[rbx], 0
                 
-                add rbx, 0x8
-                cmp qword[ent_list_end], rax
-                jne .clean_done
-                    ;is the last in the list
+                ; add rbx, 0x8
+                ; cmp qword[ent_list_end], rax
+                ; jne .clean_done
+                ;     ;is the last in the list
                     
-                    sub qword[ent_list_end], 0x8
+                ;     sub qword[ent_list_end], 0x8
+                mov rdi, rbx
+                call DestroyEntity
             .not_dead:
         .clean_done:
             ; clean up timer

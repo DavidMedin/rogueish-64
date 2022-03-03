@@ -4,6 +4,40 @@ segment .text
 extern realloc
 extern malloc
 extern printf
+
+%macro PushAll 0
+push rax
+push rbx
+push rcx
+push rdx
+push rdi
+push rsi
+push r8
+push r9
+push r10
+push r11
+push r12
+push r13
+push r14
+push r15
+%endmacro
+%macro PopAll 0
+pop r15
+pop r14
+pop r13
+pop r12
+pop r11
+pop r10
+pop r9
+pop r8
+pop rsi
+pop rdi
+pop rdx
+pop rcx
+pop rbx
+pop rax
+%endmacro
+
 ; returns the address to a place in the entity_list.
 ; The value there is where the entity *actually* is at.
 ;Entity** MakeEntity(int comp_id)
@@ -233,14 +267,67 @@ GetComponent:
     pop rbp
     ret
 
+;This function goes though the components of the given
+;entity and apropriatly cleans the components up.
+;void Deconstruct(Entity* ent)
+Deconstruct:
+    push rbp
+    mov rbp, rsp
+
+    mov rbx, rdi
+    push rbx
+    .top:
+        cmp qword[rbx], 0
+        je .end
+        mov qword[rbp-0x8], rbx
+
+        cmp qword[rbx], 1
+        je .person
+        cmp qword[rbx], 2
+        je .label
+        cmp qword[rbx],3
+        je .position
+        .person:
+            jmp .cont
+        .label:
+            cmp qword[rbx+Label.free_str], 0
+            je .no_free
+            
+                PushAll
+                mov rdi, TEST_MSG
+                mov rsi, qword[rbx+Label.string]
+                mov rax, 0
+                call printf
+                PopAll
+                mov rdi, qword[rbx+Label.string]
+                call free
+            .no_free:
+            jmp .cont
+        .position:
+            jmp .cont
+        .cont:
+        mov rbx, [rbp-0x8]
+        add rbx, [rbx+Component.size]
+        jmp .top
+    .end:
+    pop rbx
+    mov rsp,rbp
+    pop rbp
+    ret
+TEST_MSG: db "Freed the string %s",10,0
+
 ;ent is a pointer into the entity list (should be entity_list+something)
 ;void DestroyEntity(Entity** ent)
 DestroyEntity:
     push rbp
     mov rbp, rsp
 
+
     push rdi
-    mov rdi, qword[rdi]
+    mov rdi, [rdi]
+    call Deconstruct
+    mov rdi, qword[rsp]
+    mov rdi, [rdi]
     call free
     
     pop rdi
