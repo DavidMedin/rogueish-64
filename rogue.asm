@@ -1,7 +1,3 @@
-%include "inspector.asm"
-%include "ecs.asm"
-%include "draw.asm"
-%include "label.asm"
 %macro make_buffer 2
     dq %1,%2
     times %1*%2*2 db 0x20
@@ -11,6 +7,8 @@
 ;   person  -> 1
 ;   Label -> 2
 ;   Position -> 3
+;   Item -> 4
+;   Hand -> 5
 
 struc Component
     .id: resq 1
@@ -28,10 +26,6 @@ struc Person
     ;should be the same as Component
     .id: resq 1
     .size: resq 1
-    
-    ; .x: resq 1
-    ; .y: resq 1
-    
     .health: resq 1
     .char: resq 1
     .color: resq 1
@@ -45,25 +39,44 @@ struc Label
     .can_rise: resq 1
 endstruc
 
+struc Item
+    .id: resq 1
+    .size: resq 1
+    .char: resq 1
+    .color: resq 1
+    .parent: resq 1 ; entity that is holding me
+endstruc
+
+struc Hand
+    .id: resq 1
+    .size: resq 1
+    .item: resq 1
+endstruc
+
 %macro make_person 5
     mov rdi, 1
     call MakeEntity
     je %%fail ; Wow!
     mov rdx, qword[rax]
-    ; mov qword[rdx+Person.x], %1
-    ; mov qword[rdx+Person.y], %2
     mov qword[rdx+Person.health], %3
     mov qword[rdx+Person.char], %4
     mov qword[rdx+Person.color], %5
 
     mov rdi, rdx
+    push rax
     mov rsi, 3
     call AddComponent
     mov qword[rax+Position.x], %1
     mov qword[rax+Position.y], %2
+
+    mov rax, [rsp]
+    mov rdi, [rax]
+    mov rsi, 5
+    call AddComponent
+    pop rax
+    mov rax,[rax]
     %%fail:
 %endmacro
-
 
 %macro move_char 3
     push r11
@@ -75,7 +88,35 @@ endstruc
     pop r11
 %endmacro
 
+%macro reset_tick 0
+    movsd xmm0, [zero_double]
+    movsd [tick_acc],xmm0
+    mov byte[time_check], 0
+%endmacro
 
+%macro stacker 0
+    mov r15, rsp
+    push 0
+    and r15, 15
+    cmp r15,0
+    jne %%not_16
+        ; is 16 bit aligned
+        push 1
+    %%not_16:
+%endmacro
+%macro unstacker 0
+    cmp qword[rsp], 1
+    jne %%was_8
+        add rsp,8
+    %%was_8:
+    add rsp,8
+%endmacro
+
+%include "inspector.asm"
+%include "ecs.asm"
+%include "draw.asm"
+%include "label.asm"
+%include "hand.asm"
 
 segment .data
     winName: db "Rogueish 64",0
@@ -86,7 +127,7 @@ segment .data
     number_fmt: db "%d",0
     window_x: dq 1200
     window_y: dq 1072
-    pallete: dd 0xff96ccda, 0xff678bbf,0xff311d18,0xff6d6ef
+    pallete: dd 0xff96ccda, 0xff678bbf,0xff311d18,0xff4821d8
     sixteen: dd 16.0
     tick_wait: dq 0.1
     tick_acc: dq 0.0
@@ -173,13 +214,14 @@ main:
     ;allocate the enemy
     make_person 40,20,100,'Z',1
 
-    ;mov rdi, 2; Make Label
-    ;call MakeEntity
-    ;mov rdi, qword[rax]
-    ;mov rsi, 3 ; Add Position
-    ;call AddComponent
-    ;mov qword[rax+Position.x], 1
-    ;mov qword[rax+Position.y], 5
+    mov rdi, 4
+    call MakeEntity
+    mov rdi, [rax]
+    mov rsi, 3
+    call AddComponent
+    mov qword[rax+Position.x], 10
+    mov qword[rax+Position.y], 10
+
 
 ;====================================================
     while_top:
@@ -221,11 +263,28 @@ main:
                 mov r11,1; signifies shift is down
             .shift_not_down:            
             ;     |label name|key num|direction|
+            push 0
             move_char       87,      0,-1
+            add [rsp],rax
             move_char       83,      0,1
+            add [rsp],rax
             move_char       65,      -1,0
+            add [rsp],rax
             move_char       68,      1,0
+            add [rsp],rax
 
+            cmp qword[rsp],0
+            jg .done_activity
+                ; haven't moved, can do actions 
+                mov rdi, 69 ; KEY_E is 69, nice
+                call IsKeyDown
+                cmp al, 0
+                je .done_activity
+                    ; try to pick up item
+                    call PickUp
+                    reset_tick
+            .done_activity:
+            add rsp, 8
             cmp byte[time_check], 0
             jne .done_tick
                 call OnTick
@@ -278,13 +337,13 @@ OnTick:
     pop rbp
     ret
 
-;rax                 rdi   rsi
-;entity* FindEntity(int x,int y)
+;rax                 rdi   rsi  rdx
+;entity* FindEntity(int x,int y,start)
 FindEntity:
     push rbp
     mov rbp,rsp
         ;iterate through entities to find an entity at a particular place.
-        mov rbx, entity_list
+        mov rbx, rdx
         .top:
             cmp rbx,[ent_list_end]
             je  .no_find
@@ -325,7 +384,7 @@ FindEntity:
     ret
 
 
-;void Move_Char(key,x,  y,fast?)
+;int Move_Char(key,x,  y,fast?)
 Move_Char:
     push rbp
     mov rbp, rsp
@@ -335,6 +394,7 @@ Move_Char:
     ; mov rdi, %2
     call IsKeyDown
     cmp al, 0
+    mov rax, 0
     je .done
         mov rdx, qword[hero_data]
         ;conserve ---
@@ -397,96 +457,104 @@ Move_Char:
             mov qword[rax+Position.y],rcx
             jmp .clean_done
         .hit:
-            ; attack I guess
             cmp qword[rsp], 0
             je .clean_done
+            ; attack I guess
+            mov rdi, qword[rsp]
+            call Attack
+            ; mov rax, qword[rsp] ; rax = place in ent_list
+            ; mov rdi, qword[rax]
+            ; push rax
+            ; mov rsi, 1
+            ; call GetComponent
+            ; ; pop rbx
+            ; mov rbx,[rsp]
+            ; pop rcx
+            ; cmp rax, 0
+            ; je .clean_done
+            ; push rcx
 
-            mov rax, qword[rsp] ; rax = place in ent_list
-            mov rdi, qword[rax]
-            push rax
-            mov rsi, 1
-            call GetComponent
-            ; pop rbx
-            mov rbx,[rsp]
-            pop rcx
-            cmp rax, 0
-            je .clean_done
-            push rcx
-
-            ;Is a person
-            mov rcx, rax
-            sub qword[rcx+Person.health], 10
+            ; ;Is a person
+            ; mov rcx, rax
+            ; sub qword[rcx+Person.health], 10
             
-            push rbx
-            push rax
-            push rcx
-            ;create damage label
-            mov rdi, 2
-            call MakeEntity
-            mov rdi, [rax]
-            mov qword[rdi+Label.can_rise], 1
+            ; push rbx
+            ; push rax
+            ; push rcx
+            ; ;create damage label
+            ; mov rdi, 2
+            ; call MakeEntity
+            ; mov rdi, [rax]
+            ; mov qword[rdi+Label.can_rise], 1
 
-            push rdi
-            sub rsp, 0x10; asprintf wants 16-byte aligned
-            mov rdi, rsp
-            ;use sprintf
-            mov rsi, number_fmt
-            mov rdx, 10
-            mov rax, 0
-            call asprintf
-            ;write string
-            mov rbx, qword[rsp+0x10]
-            mov rax, [rsp]
-            mov qword[rbx+Label.string], rax
-            add rsp, 0x10
-            mov qword[rbx+Label.free_str], 1
+            ; push rdi
 
-            pop rdi
-            mov rsi, 3
-            call AddComponent
-            mov rbx, [rsp+0x20]
-            mov rbx, [rbx]
-            push rax
-            mov rdi, rbx
-            mov rsi, 3
-            call GetComponent
-            pop rbx
-            mov rcx, [rax+Position.x]
-            mov [rbx+Position.x],  rcx
-            mov rcx, [rax+Position.y]
-            mov [rbx+Position.y], rcx
+            ; sub rsp, 0x8
+            ; mov rdi, rsp
+            ; stacker
+            ; ; sub rsp, 0x10; asprintf wants 16-byte aligned
+            ; ;use sprintf
+            ; mov rsi, number_fmt
+            ; mov rdx, 10
+            ; mov rax, 0
+            ; call asprintf
+            ; unstacker
+            ; ;write string
+            ; mov rbx, qword[rsp+8] ; was +10
+            ; mov rax, [rsp]
+            ; mov qword[rbx+Label.string], rax
+            ; ; add rsp, 0x10
+            ; add rsp, 0x8; remove the string
+            ; mov qword[rbx+Label.free_str], 1
+
+            ; pop rdi
+            ; mov rsi, 3
+            ; call AddComponent
+            ; mov rbx, [rsp+0x20]
+            ; mov rbx, [rbx]
+            ; push rax
+            ; mov rdi, rbx
+            ; mov rsi, 3
+            ; call GetComponent
+            ; pop rbx
+            ; mov rcx, [rax+Position.x]
+            ; mov [rbx+Position.x],  rcx
+            ; mov rcx, [rax+Position.y]
+            ; mov [rbx+Position.y], rcx
 
 
-            ;===========================
-            pop rcx
-            pop rax
-            pop rbx
-            add rsp, 8
-            mov rdi, qword[rax]
-            cmp qword[rcx+Person.health], 0
-            jg .not_dead
-                ;dead
-                ; .kill:
-                ; mov rdi, qword[rbx]
-                ; call free
-                ; mov qword[rbx], 0
+            ; ;===========================
+            ; pop rcx
+            ; pop rax
+            ; pop rbx
+            ; add rsp, 8
+            ; mov rdi, qword[rax]
+            ; cmp qword[rcx+Person.health], 0
+            ; jg .not_dead
+            ;     ;dead
+            ;     ; .kill:
+            ;     ; mov rdi, qword[rbx]
+            ;     ; call free
+            ;     ; mov qword[rbx], 0
                 
-                ; add rbx, 0x8
-                ; cmp qword[ent_list_end], rax
-                ; jne .clean_done
-                ;     ;is the last in the list
+            ;     ; add rbx, 0x8
+            ;     ; cmp qword[ent_list_end], rax
+            ;     ; jne .clean_done
+            ;     ;     ;is the last in the list
                     
-                ;     sub qword[ent_list_end], 0x8
-                mov rdi, rbx
-                call DestroyEntity
-            .not_dead:
+            ;     ;     sub qword[ent_list_end], 0x8
+            ;     mov rdi, rbx
+            ;     call DestroyEntity
+            ; .not_dead:
         .clean_done:
             ; clean up timer
             add rsp, 8 ; clean up pointer given to CanMove
-            movsd xmm0, [zero_double]
-            movsd [tick_acc],xmm0
-            mov byte[time_check], 0
+            ; movsd xmm0, [zero_double]
+            ; movsd [tick_acc],xmm0
+            ; mov byte[time_check], 0
+            reset_tick
             add rsp, 0x28 ;+0x10
+            mov rax, 1
     .done:
     mov rsp, rbp
     pop rbp
@@ -517,6 +585,7 @@ CanMove:
     ;see if something else is there
     mov rdi, rsi
     mov rsi, rdx
+    mov rdx, entity_list
     call FindEntity
     cmp rax, 0
     je .success

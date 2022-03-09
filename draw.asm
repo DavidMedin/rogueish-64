@@ -81,7 +81,7 @@ DrawEntity:
     ; draw labels
     call GetComponent
     cmp rax, 0
-    je .end
+    je .item
 		mov rcx, qword[rax+Label.string]
         mov rdi, qword[rbp-0x10]
         mov rsi, 3
@@ -92,8 +92,33 @@ DrawEntity:
             mov rsi, qword[rax+Position.x]
             mov rdx, qword[rax+Position.y]
             mov r8, 0
+            push 0x3
             call CopyText
+            add rsp, 0x8
 
+    .item:
+    mov rdi, qword[rbp-0x10]
+    mov rsi, 4
+    call GetComponent
+    cmp rax, 0
+    je .end
+        mov rcx, rax
+        cmp qword[rcx+Item.parent], 0
+        jne .end
+
+        mov rdi, qword[rbp-0x10]
+        mov rsi, 3 ; position
+        call GetComponent
+        cmp rax, 0
+        je .end
+            mov rdi, qword[rbp-0x8]
+            mov rsi, qword[rax+Position.x]
+            mov rdx, qword[rax+Position.y]
+            call IndexBuffer
+            mov rdx, [rcx+Item.char]
+            mov byte[rax], dl
+            mov rdx, [rcx+Item.color]
+            mov byte[rax+1],dl
     .end:
     pop rsi
     pop rdi

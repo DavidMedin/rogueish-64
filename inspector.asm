@@ -5,8 +5,8 @@ segment .text
 extern sprintf
 
 
-;                   rdi         rsi  rdx     rcx           r8          r9
-;void CopyText(buffer* buffer,int x,int y,char* string,int width, int height)
+;                   rdi         rsi  rdx     rcx           r8          r9       stack
+;void CopyText(buffer* buffer,int x,int y,char* string,int width, int height)   color
 ;                                                 TODO:|    For word wrap   |
 CopyText:
     push rbp
@@ -57,6 +57,8 @@ CopyText:
         
         mov cl, byte[rbx]
         mov [rax], cl
+        mov rcx, [rbp+0x10]
+        mov [rax+1], cl
         
         ; increment
         add rax,2
@@ -108,7 +110,9 @@ DrawInspector:
         add rdx, [rsp]
         lea rcx, [rbp-0x20]
         mov r8, 0
+        push 0x0
         call CopyText
+        add rsp, 0x8
 
         pop rcx;|-> inc y direction
         inc rcx;|

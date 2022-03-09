@@ -51,6 +51,10 @@ MakeEntity:
     je .label
     cmp rdi,3
     je .position
+    cmp rdi, 4
+    je .item
+    cmp rdi, 5
+    je .hand
     
     jmp .none
     .person:
@@ -79,6 +83,24 @@ MakeEntity:
         mov qword[rax+Component.id],3
         ; mov qword[rax+Position.x],0
         mov rbx, Position_size
+        jmp .all
+    .item:
+        mov rdi, Item_size
+        add rdi, 0x8
+        call malloc
+        mov qword[rax+Component.id],4
+        mov qword[rax+Item.char], '/'
+        mov qword[rax+Item.color],3
+        mov qword[rax+Item.parent], 0
+        mov rbx, Item_size
+        jmp .all
+    .hand:
+        mov rdi, Hand_size
+        add rdi, 0x8
+        call malloc
+        mov qword[rax+Component.id],5
+        mov qword[rax+Hand.item], 0
+        mov rbx, Hand_size
         jmp .all
     .none:
         ;that component doesn't exist!
@@ -152,6 +174,10 @@ AddComponent:
     je .label
     cmp rsi, 3
     je .position
+    cmp rsi, 4
+    je .item
+    cmp rsi, 5
+    je .hand
     jmp .none
 
     .pre:
@@ -203,6 +229,27 @@ AddComponent:
         mov qword[rax+rcx+Position.y],0
         mov qword[rax+rcx+Position_size],0
         add rax, rcx
+        jmp .end
+
+    .item:
+        mov rsi, Item_size
+        call .pre
+        mov qword[rax+rcx+Component.id],4
+        mov qword[rax+rcx+Component.size],Item_size
+        mov qword[rax+rcx+Item.char], '/'
+        mov qword[rax+rcx+Item.color],3
+        mov qword[rax+rcx+Item.parent],0
+        mov qword[rax+rcx+Item_size],0
+        add rax,rcx
+        jmp .end
+    .hand:
+        mov rsi, Hand_size
+        call .pre
+        mov qword[rax+rcx+Component.id],5
+        mov qword[rax+rcx+Component.size],Hand_size
+        mov qword[rax+rcx+Hand.item], 0
+        mov qword[rax+rcx+Hand_size],0
+        add rax,rcx
         jmp .end
     .none:
         mov rdi, AddComponent_no_match
@@ -345,3 +392,6 @@ DestroyEntity:
     mov rsp, rbp
     pop rbp
     ret
+
+;void RemoveComponent(Entity* ent,int CompID)
+RemoveComponent:
