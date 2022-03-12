@@ -15,6 +15,7 @@ struc Component
     .size: resq 1
 endstruc
 
+%define POSITION 1
 struc Position
     .id: resq 1
     .size: resq 1
@@ -22,6 +23,7 @@ struc Position
     .y: resq 1
 endstruc
 
+%define PERSON 2
 struc Person
     ;should be the same as Component
     .id: resq 1
@@ -31,6 +33,7 @@ struc Person
     .color: resq 1
 endstruc
 
+%define LABEL 3
 struc Label
     .id: resq 1
     .size: resq 1
@@ -39,14 +42,17 @@ struc Label
     .can_rise: resq 1
 endstruc
 
+%define ITEM 4
 struc Item
     .id: resq 1
     .size: resq 1
     .char: resq 1
     .color: resq 1
     .parent: resq 1 ; entity that is holding me
+    .damage: resq 1
 endstruc
 
+%define HAND 5
 struc Hand
     .id: resq 1
     .size: resq 1
@@ -462,96 +468,10 @@ Move_Char:
             ; attack I guess
             mov rdi, qword[rsp]
             call Attack
-            ; mov rax, qword[rsp] ; rax = place in ent_list
-            ; mov rdi, qword[rax]
-            ; push rax
-            ; mov rsi, 1
-            ; call GetComponent
-            ; ; pop rbx
-            ; mov rbx,[rsp]
-            ; pop rcx
-            ; cmp rax, 0
-            ; je .clean_done
-            ; push rcx
-
-            ; ;Is a person
-            ; mov rcx, rax
-            ; sub qword[rcx+Person.health], 10
-            
-            ; push rbx
-            ; push rax
-            ; push rcx
-            ; ;create damage label
-            ; mov rdi, 2
-            ; call MakeEntity
-            ; mov rdi, [rax]
-            ; mov qword[rdi+Label.can_rise], 1
-
-            ; push rdi
-
-            ; sub rsp, 0x8
-            ; mov rdi, rsp
-            ; stacker
-            ; ; sub rsp, 0x10; asprintf wants 16-byte aligned
-            ; ;use sprintf
-            ; mov rsi, number_fmt
-            ; mov rdx, 10
-            ; mov rax, 0
-            ; call asprintf
-            ; unstacker
-            ; ;write string
-            ; mov rbx, qword[rsp+8] ; was +10
-            ; mov rax, [rsp]
-            ; mov qword[rbx+Label.string], rax
-            ; ; add rsp, 0x10
-            ; add rsp, 0x8; remove the string
-            ; mov qword[rbx+Label.free_str], 1
-
-            ; pop rdi
-            ; mov rsi, 3
-            ; call AddComponent
-            ; mov rbx, [rsp+0x20]
-            ; mov rbx, [rbx]
-            ; push rax
-            ; mov rdi, rbx
-            ; mov rsi, 3
-            ; call GetComponent
-            ; pop rbx
-            ; mov rcx, [rax+Position.x]
-            ; mov [rbx+Position.x],  rcx
-            ; mov rcx, [rax+Position.y]
-            ; mov [rbx+Position.y], rcx
-
-
-            ; ;===========================
-            ; pop rcx
-            ; pop rax
-            ; pop rbx
-            ; add rsp, 8
-            ; mov rdi, qword[rax]
-            ; cmp qword[rcx+Person.health], 0
-            ; jg .not_dead
-            ;     ;dead
-            ;     ; .kill:
-            ;     ; mov rdi, qword[rbx]
-            ;     ; call free
-            ;     ; mov qword[rbx], 0
-                
-            ;     ; add rbx, 0x8
-            ;     ; cmp qword[ent_list_end], rax
-            ;     ; jne .clean_done
-            ;     ;     ;is the last in the list
-                    
-            ;     ;     sub qword[ent_list_end], 0x8
-            ;     mov rdi, rbx
-            ;     call DestroyEntity
-            ; .not_dead:
+           
         .clean_done:
             ; clean up timer
             add rsp, 8 ; clean up pointer given to CanMove
-            ; movsd xmm0, [zero_double]
-            ; movsd [tick_acc],xmm0
-            ; mov byte[time_check], 0
             reset_tick
             add rsp, 0x28 ;+0x10
             mov rax, 1

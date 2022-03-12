@@ -92,6 +92,7 @@ MakeEntity:
         mov qword[rax+Item.char], '/'
         mov qword[rax+Item.color],3
         mov qword[rax+Item.parent], 0
+        mov qword[rax+Item.damage], 15
         mov rbx, Item_size
         jmp .all
     .hand:
@@ -248,6 +249,7 @@ AddComponent:
         mov qword[rax+rcx+Component.id],5
         mov qword[rax+rcx+Component.size],Hand_size
         mov qword[rax+rcx+Hand.item], 0
+        mov qword[rax+rcx+Item.damage], 15
         mov qword[rax+rcx+Hand_size],0
         add rax,rcx
         jmp .end
