@@ -11,13 +11,17 @@ PickUp:
     call GetComponent
     cmp rax, 0
     je .no_position
+
     push rax
+	sub rsp, 8 ; align:1
     mov rsi, 5
     call GetComponent
     cmp rax, 0
     je .no_hands
-    push rax
-    
+
+    ;push rax
+	mov [rsp], rax ; use align:1    
+
     mov rax, entity_list
     jmp .go
     .try_again:
@@ -195,8 +199,8 @@ PickUpBadProgrammer: db "You dingus, that 'hero' doesn't have a position compone
 Attack:
     push rbp
     mov rbp, rsp
-
     push rdi ; attackee Entity** -> rbp-0x8
+	sub rsp, 8 ; align:1
 
     ;Get hero's damage delt===============
     mov rdi, [hero_data]
@@ -205,16 +209,24 @@ Attack:
     cmp rax, 0
     je .end ; No hands, no attack!
 
-    mov rdi, [rax]
-    mov rdi, ITEM
+    mov rdi, [rax+Hand.item]
+    cmp rdi, 0
+    je .no_item
+    mov rdi, [rdi]
+    mov rsi, ITEM
     call GetComponent
     cmp rax,0
     je .no_item
         ; there is an item
-        push qword[rax+Item.damage]; damage -> rbp-0x10
+        ;push qword[rax+Item.damage]; damage -> rbp-0x10
+		mov rdi, [rax+Item.damage]
+		mov [rsp], rdi; Use align:1
         jmp .end_item
     .no_item:    
-        push 10; damage -> rbp-0x10
+        ; will be causes if there is no item in hand
+        ; or if the entity in hand is not an item (weird)
+        ;push 10; damage -> rbp-0x10
+		mov qword[rsp], 10
     .end_item:
     ;======================================
     ;Deal Damage===========================
@@ -225,7 +237,14 @@ Attack:
     cmp rax, 0
     je .end
     
-    mov rbx, [rsp-0x10]
+    mov rbx, [rbp-0x10] ; was rsp?
+    ; PushAll
+    ; stacker
+
+    ; mov rsi, rbx
+
+    ; unstacker
+    ; PopAll
     sub qword[rax+Person.health], rbx
     ;======================================
 
@@ -233,11 +252,12 @@ Attack:
     cmp qword[rax+Person.health], 0
     jg .not_dead
         ;is dead
-        push 1
+        push 1 ; rbp-0x18
         jmp .done_dead
     .not_dead:
     push 0
     .done_dead:
+	sub rsp, 8 ; rbp-0x20
     ;======================================
 
     ;Create Damage Label===================
@@ -246,38 +266,44 @@ Attack:
     call MakeEntity
     mov rbx, [rax]
     mov qword[rbx+Label.can_rise], 1
-    push rax ; Entity** new label -> rbp-0x20
+    push rax ; Entity** new label -> rbp-0x28
+	sub rsp, 8 ; align:2 -> rbpx30
         ;Add Position to Label========
     mov rdi, rbx
     mov rsi, POSITION
     call AddComponent
-        push rax;=======
+        ;push rax;=======
+		mov [rsp], rax ; use align:2
     mov rbx, [rbp-0x8];#
     mov rdi,[rbx]     ;#
     mov rsi, POSITION ;#
     call GetComponent ;#
-        pop rbx;========
+        ;pop rbx;========
+		mov rbp, [rsp] ; read from align:2
     mov rcx, [rbx+Position.x]
     mov [rax+Position.x], rcx
     mov rcx, [rbx+Position.y]
     mov [rax+Position.y], rcx
 
         ;Create string for Label======
-    sub rsp, 8  ;0x28
-    mov rdi, rsp
+    ;sub rsp, 8  ;0x38
+    mov rdi, rsp; use rbp-0x30 align:2
     mov rsi, number_fmt
     mov rdx, qword[rbp-0x10]
     mov rax, 0
-    stacker
+    ;stacker
     call sprintf
-    unstacker
+    ;unstacker
 
     pop rcx; Removes text from 0x20
-    pop rbx ; removes Entity** new label at rbp-0x20
+    pop rbx ; removes Entity** new label at rbp-0x28
     mov rbx,[rbx]
     mov qword[rbx+Label.string], rcx
     ;======================================
+	add rsp, 8 ; remove -0x20, align buffer
     pop rbx ; should be -0x18, which is whether player is dead
+    cmp rbx, 0
+    je .end
     mov rdi, [rbp-0x8]
     call DestroyEntity
     ;======================================

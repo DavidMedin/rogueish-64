@@ -8,6 +8,7 @@ Label_Move_Up:
         ;of whom have both position and label
     mov rbx, entity_list
     push rbx
+	sub rsp, 0x8 ; align:1
     .each_top:
         cmp rbx, qword[ent_list_end]
         jge .end
@@ -41,7 +42,7 @@ Label_Move_Up:
         add rbx, 0x8
         jmp .each_top
     .end:
-    add rsp, 0x8
+    add rsp, 0x10
     mov rsp, rbp
     pop rbp
     ret

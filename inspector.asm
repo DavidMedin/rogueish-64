@@ -15,23 +15,27 @@ CopyText:
     push r8 ; width -> -0x8
     push r9; height -> -0x10
     push rcx ; string -> -0x18
+	sub rsp, 8 ; align:1
     call IndexBuffer ; it just works
     mov r8, [rbp - 0x8]
     mov r9, [rbp - 0x10]
     mov rbx,[rbp - 0x18]
 
-    push 0; x ->  -0x20
+    ;push 0; x ->  -0x20
+	mov qword[rsp], 0; -0x20 from align:1
     push 0; y -> -0x28
     
     ; mov rbx, qword[rbp-0x18] ok wtf
-    push 0
+    push 0 ; -0x30
     cmp rax,0
     jne .top
         .fail:
+		sub rsp, 0x8; align
         push rdi
         mov rdi, copy_text_err
         call printf
         pop rdi
+		add rsp, 0x8
         jmp .end
     .top:
         cmp byte[rbx], 0
@@ -46,9 +50,11 @@ CopyText:
             inc rdx ;| input args. x is already in rsi
                     ;|, and we just need to add 1 to y.
             push rbx
+			sub rsp, 8; align:2
             call IndexBuffer ; get new place to write to -> rax
             mov r8, [rbp - 0x8] ; restore r8 and r9
             mov r9, [rbp - 0x10]
+			add rsp, 8; align:2
             pop rbx ; restore pointer into input string
             cmp rax, 0 ; potentially fail
             je .fail
@@ -110,9 +116,10 @@ DrawInspector:
         add rdx, [rsp]
         lea rcx, [rbp-0x20]
         mov r8, 0
+		sub rsp, 8 ; align:1
         push 0x0
         call CopyText
-        add rsp, 0x8
+        add rsp, 0x10
 
         pop rcx;|-> inc y direction
         inc rcx;|

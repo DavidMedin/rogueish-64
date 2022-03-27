@@ -5,39 +5,6 @@ extern realloc
 extern malloc
 extern printf
 
-%macro PushAll 0
-push rax
-push rbx
-push rcx
-push rdx
-push rdi
-push rsi
-push r8
-push r9
-push r10
-push r11
-push r12
-push r13
-push r14
-push r15
-%endmacro
-%macro PopAll 0
-pop r15
-pop r14
-pop r13
-pop r12
-pop r11
-pop r10
-pop r9
-pop r8
-pop rsi
-pop rdi
-pop rdx
-pop rcx
-pop rbx
-pop rax
-%endmacro
-
 ; returns the address to a place in the entity_list.
 ; The value there is where the entity *actually* is at.
 ;Entity** MakeEntity(int comp_id)
@@ -168,6 +135,7 @@ AddComponent:
         jmp .end
     .find_end:
 
+	;sub rsp, 8; align:1
     push rsi
     cmp rsi, 1
     je .person
@@ -259,7 +227,7 @@ AddComponent:
         mov rax, 0
         call printf
     .end:
-    pop rsi
+    ;pop rsi
     mov rsp,rbp
     pop rbp
     ret
@@ -325,6 +293,7 @@ Deconstruct:
 
     mov rbx, rdi
     push rbx
+	sub rsp, 8 ; align:1
     .top:
         cmp qword[rbx], 0
         je .end
@@ -359,6 +328,7 @@ Deconstruct:
         add rbx, [rbx+Component.size]
         jmp .top
     .end:
+	add rsp, 8
     pop rbx
     mov rsp,rbp
     pop rbp
@@ -372,6 +342,7 @@ DestroyEntity:
     mov rbp, rsp
 
 
+	sub rsp, 8 ; align:1
     push rdi
     mov rdi, [rdi]
     call Deconstruct

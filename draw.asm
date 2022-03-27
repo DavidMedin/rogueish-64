@@ -56,19 +56,24 @@ DrawEntity:
     je .label
         ; if this entity has a person component
         mov rcx, rax
+		sub rsp, 8;align:1
         push rcx
         mov rdi, qword[rbp-0x10]
         mov rsi, 3
         call GetComponent
         pop rcx
+		;add rsp, 8 ;unalign:1
         cmp rax, 0
         je .label
+		;sub rsp, 8 ; align:2
+		;mov [rsp], rcx ;use align:1
         push rcx
         mov rdi, [rbp-0x8]
         mov rsi, [rax+Position.x]
         mov rdx, [rax+Position.y]
         call IndexBuffer
         pop rcx
+		add rsp, 8 ; unalign:1
         mov bl, [rcx+Person.char]
         mov byte[rax], bl
         mov bl, [rcx+Person.color]
@@ -92,9 +97,10 @@ DrawEntity:
             mov rsi, qword[rax+Position.x]
             mov rdx, qword[rax+Position.y]
             mov r8, 0
+			sub rsp, 8;align:1
             push 0x3
             call CopyText
-            add rsp, 0x8
+            add rsp, 0x10;unalign:1 & color push
 
     .item:
     mov rdi, qword[rbp-0x10]
