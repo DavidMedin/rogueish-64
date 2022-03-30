@@ -82,120 +82,6 @@ PickUpMiss: db "No item is on the floor there!",10,0
 PickUpBadProgrammer: db "You dingus, that 'hero' doesn't have a position component!",10,0
 
 ;void Attack(Entity** attackee)
-; Attack:
-;     push rbp
-;     mov rbp, rsp
-;     push rdi    ; rbp -0x8
-;     ; mov rax, qword[rdi] ; rax = place in ent_list
-;     mov rdi, qword[rdi]
-;     push rax
-;     mov rsi, 1
-;     call GetComponent
-;     ; pop rbx
-;     mov rbx,[rbp-0x8];  rbp-0x8 = first arg
-;     pop rcx
-;     cmp rax, 0
-;     je .end
-;     push rcx
-
-;     ;Is a person
-;     mov rcx, rax
-
-;     ;Attack!
-;     ;Figure out the dmaage to deal
-;     ;Find if the human has a hand
-;     mov rdi, qword[rbp-0x8]
-;     mov rdi, [rdi]
-;     mov rsi, HAND
-;     call GetComponent
-;     cmp rax, 0
-;     je .end ; will clean the stack
-
-;     cmp qword[rax+Hand.item], 0
-;     je .no_item
-;         ;has an item
-;         mov rdx, qword[rax+Hand.item]
-;         mov rdi, [rdx]
-;         mov rsi, ITEM
-;         call GetComponent
-;         cmp rax, 0
-;         je .end
-
-;         ; mov rdx, qword[rdx+Item.damage]
-;         push qword[rax+Item.damage]
-;     .no_item:
-;         ;doesn't have an item
-;         ; mov rdx, 10
-;         push 10
-;     .done_damage:
-
-;     mov rdx, qword[rsp]
-;     sub qword[rcx+Person.health], rdx
-    
-;     push rbx
-;     push rax
-;     push rcx
-;     ;create damage label
-;     mov rdi, 2
-;     call MakeEntity
-;     mov rdi, [rax]
-;     mov qword[rdi+Label.can_rise], 1
-
-;     push rdi
-
-;     ;generate damage string
-;     sub rsp, 0x8
-;     mov rdi, rsp
-;     stacker
-;     ;use sprintf
-;     mov rsi, number_fmt
-;     mov rdx, qword[rbp-0x18] ; was 10
-;     mov rax, 0
-;     call asprintf
-;     unstacker
-;     ;write string
-;     mov rbx, qword[rsp+8]
-;     mov rax, [rsp]
-;     mov qword[rbx+Label.string], rax
-
-;     add rsp, 0x8; remove the string
-;     mov qword[rbx+Label.free_str], 1
-
-;     pop rdi
-;     mov rsi, 3
-;     call AddComponent
-;     ; mov rbx, [rsp+0x20]
-;     mov rbx, [rbp-0x8]
-;     mov rbx, [rbx]
-;     push rax
-;     mov rdi, rbx
-;     mov rsi, 3
-;     call GetComponent
-;     pop rbx
-;     mov rcx, [rax+Position.x]
-;     mov [rbx+Position.x],  rcx
-;     mov rcx, [rax+Position.y]
-;     mov [rbx+Position.y], rcx
-
-
-;     ;===========================
-;     ;try to kill
-;     pop rcx
-;     pop rax
-;     pop rbx
-;     add rsp, 8
-;     mov rdi, qword[rax]
-;     cmp qword[rcx+Person.health], 0
-;     jg .not_dead
-;         mov rdi, rbx
-;         call DestroyEntity
-;     .not_dead:
-;     .end:
-;     mov rsp, rbp
-;     pop rbp
-;     ret
-
-;void Attack(Entity** attackee)
 Attack:
     push rbp
     mov rbp, rsp
@@ -279,23 +165,23 @@ Attack:
     mov rsi, POSITION ;#
     call GetComponent ;#
         ;pop rbx;========
-		mov rbp, [rsp] ; read from align:2
-    mov rcx, [rbx+Position.x]
-    mov [rax+Position.x], rcx
-    mov rcx, [rbx+Position.y]
-    mov [rax+Position.y], rcx
+		mov rbx, [rsp] ; read from align:2
+    mov rcx, [rax+Position.x]
+    mov [rbx+Position.x], rcx
+    mov rcx, [rax+Position.y]
+    mov [rbx+Position.y], rcx
 
         ;Create string for Label======
     ;sub rsp, 8  ;0x38
     mov rdi, rsp; use rbp-0x30 align:2
-    mov rsi, number_fmt
+    mov rsi, bare_int_fmt
     mov rdx, qword[rbp-0x10]
     mov rax, 0
     ;stacker
-    call sprintf
+    call asprintf
     ;unstacker
 
-    pop rcx; Removes text from 0x20
+    pop rcx; Removes text from 0x30
     pop rbx ; removes Entity** new label at rbp-0x28
     mov rbx,[rbx]
     mov qword[rbx+Label.string], rcx
@@ -304,8 +190,8 @@ Attack:
     pop rbx ; should be -0x18, which is whether player is dead
     cmp rbx, 0
     je .end
-    mov rdi, [rbp-0x8]
-    call DestroyEntity
+    	mov rdi, [rbp-0x8]
+    	call DestroyEntity
     ;======================================
     ; 16 bytes implicitly cleaned up
     .end:

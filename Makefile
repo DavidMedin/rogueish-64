@@ -8,10 +8,10 @@ libwrappers.a : wrappers.c
 
 rogue: *.asm libwrappers.a
 	nasm -f elf64 -F dwarf -g rogue.asm
-	gcc -g -m64 -no-pie -o rogue rogue.o -lc ./lib/libraylib.a -L./ -lwrappers -lGL -lm -lpthread -ldl -lrt -lX11 -Wall
+	gcc -DDMALLOC -DMALLOC_FUNC_CHECK -O0 -g -m64 -no-pie -o rogue rogue.o -lc ./lib/libraylib.a -L./ -lwrappers -lGL -lm -lpthread -ldl -lrt -lX11 -Wall -ldmallocth #-fsanitize=address 
 
-#rogue: *.asm libwrappers.a
-	#nasm -f elf64 -F dwarf -g test.asm
-	#gcc -g -m64 -no-pie -o rogue test.o -lc ./lib/libraylib.a -L./ -lm -lpthread -ldl -lrt -Wall
 test-c: sizeof.c
 	gcc -m64 -no-pie -o test-c sizeof.c -lc ./lib/libraylib.a -lGL -lm -lpthread -ldl -lrt -lX11
+
+clean: 
+	rm rogue

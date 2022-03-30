@@ -31,8 +31,8 @@ pop rbx
 pop rax
 %endmacro
 
-%macro check_stack 0
-	;PushAll
+%macro check_stack 1
+	PushAll
 	;push rdi
 	;mov rdi, __?LINE?__
 	;pop rdi
@@ -40,16 +40,17 @@ pop rax
        ;%%file: db __?FILE?__,0
    ;%%start:
    ;mov rsi, %%file
-   ;mov r15, rsp
-   ;and r15, 15
-   ;cmp r15, 0
-   ;je %%aligned
-       ;; not aligned
-       ;mov rdi, stack_not_aligned
-       ;mov rax, 0
-       ;call printf
-   ;%%aligned:
-	;PopAll
+   mov r15, rsp
+   and r15, 15
+   cmp r15, 0
+   je %%aligned
+       ; not aligned
+       mov rdi, stack_not_aligned
+	   mov rsi, %1
+       mov rax, 0
+       call printf
+   %%aligned:
+	PopAll
 %endmacro
 
 %macro make_buffer 2
@@ -115,7 +116,6 @@ endstruc
 
 %macro make_person 5
     mov rdi, 1
-	check_stack
     call MakeEntity
     je %%fail ; Wow!
     mov rdx, qword[rax]
@@ -127,15 +127,13 @@ endstruc
 	sub rsp, 8 ; align stack
     push rax
     mov rsi, 3
-	check_stack
     call AddComponent
     mov qword[rax+Position.x], %1
     mov qword[rax+Position.y], %2
 
     mov rax, [rsp]
     mov rdi, [rax]
-    mov rsi, 5
-	check_stack
+    mov rsi, HAND
     call AddComponent
     pop rax
 	add rsp, 8 ; fix stack
@@ -149,7 +147,6 @@ endstruc
     mov rsi, %2
     mov rdx, %3
     mov rcx, r11
-	check_stack
     call Move_Char
     pop r11
 %endmacro
@@ -191,6 +188,7 @@ segment .data
     print_num: db "%.6f",10,0
     sprint_msg: db "--==Rogueish 64==--",0
     number_fmt: db "%d",10,0
+	bare_int_fmt: db "%d",0
     window_x: dq 1200
     window_y: dq 1072
     pallete: dd 0xff96ccda, 0xff678bbf,0xff311d18,0xff4821d8
@@ -205,7 +203,7 @@ segment .data
     game_buffer: make_buffer 75,67
     entity_list: times 256 dq 0
 
-    stack_not_aligned: db "ERROR: The stack isn't aligned here! %s : %d",10,0
+    stack_not_aligned: db "Cringe! %d",10,0 ;"ERROR: The stack isn't aligned here! %s : %d",10,0
 segment .bss
     font: resb 48
     hero_data: resq 1
@@ -267,11 +265,11 @@ main:
     mov rdx, 0
     mov rcx, 0
     mov r8, font
-    check_stack
+    
     call RealLoadFontEx ; "Real"
     
     mov rdi, game_buffer
-    check_stack
+    
     call DrawRoom
 
     mov qword[ent_list_end], entity_list
@@ -284,19 +282,18 @@ main:
     ;allocate the enemy
     make_person 40,20,100,'Z',1
 
-    mov rdi, 4
-    check_stack
+    mov rdi, 4 
     call MakeEntity
     mov rdi, [rax]
     mov rsi, 3
-    check_stack
+    
     call AddComponent
     mov qword[rax+Position.x], 10
     mov qword[rax+Position.y], 10
 
 ;====================================================
     while_top:
-    check_stack
+    
     call WindowShouldClose
 
     cmp rax,1
@@ -308,7 +305,7 @@ main:
         ;if it is greater set ready var to 1
         ;if ready var is 1, get key down
         ;   if key is down, set ready var to 0
-        check_stack
+        
         call GetFrameTime
         cvtps2pd xmm0,xmm0 ;convert the float to double
         addsd xmm0,[tick_acc]
@@ -350,60 +347,61 @@ main:
             jg .done_activity
                 ; haven't moved, can do actions 
                 mov rdi, 69 ; KEY_E is 69, nice
-                check_stack
+                
                 call IsKeyDown
                 cmp al, 0
                 je .done_activity
                     ; try to pick up item
-                    check_stack
+                    
                     call PickUp
                     reset_tick
             .done_activity:
             add rsp, 8
             cmp byte[time_check], 0
             jne .done_tick
-                check_stack
+                
                 call OnTick
             ; ;update damage indicator
             ; call Label_Move_Up
         .done_tick:
 
-        check_stack
+        
         call BeginDrawing
 
         mov edi, dword[pallete+2*0x4]
-        check_stack
+        
         call ClearBackground
 
         ;clear buffer
         mov rdi, game_buffer
-        check_stack
+        
         call ClearBuffer
         ;draw  room
-        check_stack
+        
         call DrawRoom
         
         ;draw entities
-        check_stack
+        
         call DrawEntities
 
         ; draw the Hero over everything
         mov rsi, [entity_list]
-        check_stack
+        
         call DrawEntity
 
         mov rdi, game_buffer
-        check_stack
+        
         call DrawInspector
 
-        check_stack
+        
         call DrawBuffer
-        check_stack
+        
+		;check_stack 1
         call EndDrawing
 
         jmp while_top
     while_end:
-    check_stack
+    
     call CloseWindow
 
     mov rax, 0
@@ -416,7 +414,7 @@ move_char_fail_msg: db "Attempted to move character out of bounds!",10,0
 OnTick:
     push rbp
     mov rbp, rsp
-        check_stack
+        
         call Label_Move_Up
     mov rsp, rbp
     pop rbp
@@ -442,7 +440,7 @@ FindEntity:
 			sub rsp,8 ; aligned
             mov rdi, rcx
             mov rsi, 3
-            check_stack
+            
             call GetComponent
 			add rsp, 8;undo fix
             pop rbx
@@ -480,7 +478,7 @@ Move_Char:
     push rdx
     push rcx
 	sub rsp, 8;align fix
-    check_stack
+    
     call IsKeyDown
     cmp al, 0
     mov rax, 0
@@ -492,7 +490,7 @@ Move_Char:
         ; args ---
         mov rdi, rdx
         mov rsi, 3
-        check_stack
+        
         call GetComponent
 		add rsp, 8 ; unalign
         pop rdx
@@ -528,7 +526,7 @@ Move_Char:
         ; sub rsp, 8 ;| -> Just to give CanMove a
         push 69
         mov rcx,rsp;| valid address.
-        check_stack
+        
         call CanMove
         ; add rsp,8
 
@@ -536,7 +534,7 @@ Move_Char:
         jne  .succ ; if failed
             ; fail!
             mov rdi, move_char_fail_msg
-            check_stack
+            
             call printf
             jmp .clean_done
         .succ: ; not failed
@@ -545,7 +543,7 @@ Move_Char:
             ; mov rax, [hero_data]
             mov rdi, qword[hero_data]
             mov rsi, 3
-            check_stack
+            
             call GetComponent
             mov rbx, [rsp+0x10]
             mov rcx, [rsp+0x8]
@@ -557,7 +555,7 @@ Move_Char:
             je .clean_done
             ; attack I guess
             mov rdi, qword[rsp]
-            check_stack
+            
             call Attack
            
         .clean_done:
@@ -583,7 +581,7 @@ CanMove:
     mov rbp,rsp
     push rcx
 	sub rsp,8; align
-	check_stack
+	
     call IndexBuffer
     cmp rax, 0
     jne .no_fail
@@ -600,7 +598,7 @@ CanMove:
     mov rdi, rsi
     mov rsi, rdx
     mov rdx, entity_list
-	check_stack
+	
     call FindEntity
     cmp rax, 0
     je .success
@@ -609,7 +607,7 @@ CanMove:
     ;push rax
 	mov [rsp], rax ; was a push (using aligned)
     mov rsi, 1
-	check_stack
+	
     call GetComponent
     ;pop rbx
 	mov rbx, [rsp]
@@ -644,7 +642,7 @@ MoveChar:
     ; args match IndexBuffer
     push rcx
     push r8
-	check_stack
+	
     call IndexBuffer ; [rbp-8] = IndexBuffer
     pop r8
     pop rcx
@@ -661,7 +659,7 @@ MoveChar:
     push rax
     mov rsi,rcx
     mov rdx,r8
-	check_stack
+	
     call IndexBuffer
 
     ;check if the index was out of bounds
