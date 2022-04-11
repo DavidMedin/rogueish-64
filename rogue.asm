@@ -200,7 +200,11 @@ segment .data
     DamageTEST: db "Will deal damage", 10, 0
 
     char_spacing: dd 12
+
     game_buffer: make_buffer 75,67
+	final_buffer: make_buffer 75,67
+	inv_buffer: make_buffer 20,20
+
     entity_list: times 256 dq 0
 
     stack_not_aligned: db "Cringe! %d",10,0 ;"ERROR: The stack isn't aligned here! %s : %d",10,0
@@ -243,7 +247,6 @@ main:
     cqo
     mul dword [game_buffer + 0]
     mov rcx, rax
-
     xor eax,eax
     mov eax, [char_spacing]
     cqo
@@ -254,6 +257,7 @@ main:
     mov [window_x], rax
     mov [window_y], rcx
     
+	; create window
     mov rdi, rcx
     mov rsi, rax
     mov rdx,winName
@@ -269,8 +273,9 @@ main:
     call RealLoadFontEx ; "Real"
     
     mov rdi, game_buffer
-    
     call DrawRoom
+	mov rdi, inv_buffer
+	call DrawRoom
 
     mov qword[ent_list_end], entity_list
 
@@ -374,27 +379,40 @@ main:
 
         ;clear buffer
         mov rdi, game_buffer
-        
         call ClearBuffer
+
         ;draw  room
-        
+		mov rdi, game_buffer
         call DrawRoom
-        
+		mov rdi, inv_buffer
+        call DrawRoom
+		;draw items into inv_buffer
+
         ;draw entities
         
+		mov rdi, game_buffer
         call DrawEntities
 
         ; draw the Hero over everything
         mov rsi, [entity_list]
-        
         call DrawEntity
 
         mov rdi, game_buffer
-        
         call DrawInspector
 
-        
-        call DrawBuffer
+		mov rdi, game_buffer
+		mov rsi, final_buffer
+		mov rdx, 0
+		mov rcx, 0
+		call BlitBuffer
+		mov rdi, inv_buffer
+		mov rsi, final_buffer
+		mov rdx, 55
+		mov rcx, 47
+		call BlitBuffer
+
+		mov rdi, final_buffer
+		call DrawBuffer
         
 		;check_stack 1
         call EndDrawing

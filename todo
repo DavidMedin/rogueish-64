@@ -27,13 +27,13 @@ Game logic time !
     [] draw components for selected entity  
 [x] make AddComponent, CreateEntity, and HasCompenent functions
 [x] write damage delt in character above enemy (or don't) for a second or something
-[] items!
-    [] move onto item and press 'e' to pick up item
-    [] contains the damage value you deal
-[] windows
-    [] make text buffers w/ function
-    [] make a main buffer (game scene) which is immediatly piped to the shader
-    [] make a inventory window that is 'blited' on top of the draw buffer after the main buffer
+[#] items!
+    [#] move onto item and press 'e' to pick up item
+    [#] contains the damage value you deal
+[x] windows
+    [x] make text buffers w/ function
+    [x] make a main buffer (game scene) which is immediatly piped to the shader
+    [x] make a inventory window that is 'blited' on top of the draw buffer after the main buffer
 [] inventory
     [] plain text display current weapon (start with stick or something)
     [] item on ground is sword (change item in inv when picked up)

@@ -8,6 +8,7 @@
 %endmacro
 
 segment .text
+extern memcpy
 ; void ClearBuffer(Buffer* buffer)
 ClearBuffer:
     push rbp
@@ -234,22 +235,146 @@ DrawRoom:
     pop rbp
     ret
 
-;void DrawBuffer(Font* font)
+;void BlitBuffer(Buffer* src, buffer* dest, int dest_x, int dest_y)
+BlitBuffer:
+	push rbp
+	mov rbp, rsp
+	push rdi ; -> 0x8
+	push rsi ; -> 0x10
+	push rdx ; -> 0x18
+	push rcx ; -> 0x20
+	mov rax, [rdi]
+	shl rax, 1 ; width * 2
+	push rax ; -> 0x28
+	sub rsp, 0x8
+
+	;----Calculate width copyable-----
+	mov rax, [rsi]
+	sub rax, [rdi] ; dest.width - src.width
+	cmp rax, 0
+	jl .fail ; if(dest.width - src.width < 0) fail 
+	;------------------------
+	;-----Calculate Height copyable
+	mov rax, [rsi+0x8]
+	sub rax, [rdi+0x8]
+	cmp rax, 0
+	jl .fail ; same as before but height
+
+	cmp rdx, 0;| x and y must be positive
+	jl .fail  ;|
+	cmp rcx, 0;|
+	jl .fail;  |
+	
+	;mov rdi, .x_msg
+	;mov rsi, [rbp-0x18]
+	;mov rax, 0
+	;call printf
+	;mov rdi, .y_msg
+	;mov rsi, [rbp-0x20]
+	;mov rax, 0
+	;call printf
+	;mov rdi, [rbp - 0x8]
+	;mov rsi, [rdi+0x8]
+	;mov rdi, .height_msg
+	;mov rax, 0
+	;call printf
+	;Iterate through src's Y---------
+	mov r8, 0 ; was rcx for release
+	mov r9, 0
+	.top:
+		mov rsi, [rbp - 0x10]
+		cmp r8, [rsi + 0x8] ; get dests height
+		jge .bot
+		; ------ Get destination pointer
+		;mov rdi, rsi
+		;mov rcx, [rdi]
+		;add rdi, 0x10; skip dimentions
+		;mov rbx, [rbp - 0x20] ; get y
+		;cqo; fill rdx with 0 prob
+		;mov rax, rbx
+		;mul rcx ; y * width
+		;add rcx, [rbp - 0x18] ; y * width + x
+		;lea rdi, [rdi + rcx] ; buffer[y * width + x]
+		mov rdi, rsi
+		mov rsi, [rbp-0x18]
+		mov rdx, [rbp-0x20]
+		add rdx, r8
+		push r8
+		push r9
+		call IndexBuffer
+		pop r9
+		pop r8
+		sub rsp, 8; align : 1
+		push rax
+
+		mov rdi, [rbp - 0x8]
+		cmp r9, [rdi+0x8]; compare to height
+		jge .bot
+		mov rsi, 0
+		mov rdx, r9
+		push r8
+		push r9
+		call IndexBuffer
+		pop r9
+		pop r8
+
+		mov rsi, rax
+		pop rdi
+		add rsp, 8 ; align :1
+		mov rdx, [rbp - 0x28]
+		push r8
+		push r9
+		call memcpy
+		pop r9
+		pop r8
+		inc r9
+		inc r8
+		jmp .top
+	.bot:
+	;mov rdi, .height_msg
+	;mov rsi, r8
+	;mov rax, 0
+	;call printf
+	;mov rdi, .height_msg
+	;mov rsi, r9
+	;mov rax, 0
+	;call printf
+	jmp .end
+	.fail:
+		mov rdi, .fail_msg
+		mov rax, 0
+		call printf
+		int3
+	.end:
+	mov rsp, rbp
+	pop rbp
+	ret
+	.fail_msg: db "Src buffer tried to blit outside of dest!",10,0
+	.width_msg: db "width: %d", 10 ,0
+	.height_msg: db "height: %d", 10, 0
+	.x_msg: db "x: %d", 10,0
+	.y_msg: db "y: %d",10,0
+
+;					rdi
+;void DrawBuffer(Buffer* buffer)
 DrawBuffer:
     push rbp
     mov rbp, rsp
-    sub rsp, 0xc
-    push_font font
+    sub rsp, 0xc; 12 bytes, save x and y
+	push rdi
+    push_font font; where is font referenced? ; 0x30 bytes
 
     mov r8,0
     top_y:
-        cmp r8d, dword [game_buffer + 8]
+		mov rax, [rbp - 0x14] ; get buffer
+        cmp r8d, dword [rax + 8]
         je end_y
         mov r9, 0
 
         ;for ex
         top_x:
-            cmp r9d, dword[game_buffer + 0]
+			mov rax, [rbp-0x14]
+            cmp r9d, dword[rax + 0]
             je end_x
 
             ;---------------
@@ -275,14 +400,17 @@ DrawBuffer:
             ;TODO: maybe should be moved closer to function
             movss xmm1, [sixteen]
             ;------------
-            mov eax, [game_buffer + 0]
+			mov rax, [rbp-0x14]
+            mov eax, [rax + 0]
             cdq
             mul r8d ; y * buff_size_x
             shl rax, 1 ; multiply by two to get the number of bytes (char, color index)
+			xor rbx,rbx
             mov ebx,eax ; ebx = eax
             ; ebx = 16 * char_count_x * y
             ;-----------
 
+			xor rax,rax
             mov eax, r9d
             push  2
             cdq
@@ -292,9 +420,12 @@ DrawBuffer:
             ; eax = x * 2 + 8 (becuase the second byte is color)
             ;-----------
 
+			; index buffer (get color and character)
             xor rdi,rdi;       buffer  +  y-off + x-off
-            mov dil, byte [game_buffer + ebx   +  eax]
-            mov bl, byte[game_buffer + ebx + eax + 1]
+			mov r10, [rbp-0x14]
+			add r10, rbx
+            mov dil, byte [r10   +  rax]; get char
+            mov bl, byte[r10 + rax + 1]; get color
             xor rax,rax
             mov al, bl
             xor rbx,rbx
@@ -302,6 +433,7 @@ DrawBuffer:
             mov dword [rbp-0x8], r8d
             mov dword [rbp-0xc], r9d
 
+			;--------- index color pallete
             xor rsi,rsi
             xor rax,rax
             mov rax, rbx
