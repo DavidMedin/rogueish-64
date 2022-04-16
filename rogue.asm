@@ -105,6 +105,7 @@ struc Item
     .color: resq 1
     .parent: resq 1 ; entity that is holding me
     .damage: resq 1
+	.name: resq 1
 endstruc
 
 %define HAND 5
@@ -180,6 +181,7 @@ endstruc
 %include "draw.asm"
 %include "label.asm"
 %include "hand.asm"
+%include "inventory.asm"
 
 segment .data
     winName: db "Rogueish 64",0
@@ -189,8 +191,14 @@ segment .data
     sprint_msg: db "--==Rogueish 64==--",0
     number_fmt: db "%d",10,0
 	bare_int_fmt: db "%d",0
+	inv_title: db "Inventory",0
+	game_title: db "Game",0
+
+	item_name: db "Stick",0
+
     window_x: dq 1200
     window_y: dq 1072
+	;		Bright Yellow	 Brownish      Background    Red
     pallete: dd 0xff96ccda, 0xff678bbf,0xff311d18,0xff4821d8
     sixteen: dd 16.0
     tick_wait: dq 0.1
@@ -287,11 +295,13 @@ main:
     ;allocate the enemy
     make_person 40,20,100,'Z',1
 
+	;create stick item
     mov rdi, 4 
     call MakeEntity
     mov rdi, [rax]
+	mov qword[rdi + Item.name], item_name
+
     mov rsi, 3
-    
     call AddComponent
     mov qword[rax+Position.x], 10
     mov qword[rax+Position.y], 10
@@ -384,9 +394,35 @@ main:
         ;draw  room
 		mov rdi, game_buffer
         call DrawRoom
+		mov rdi, game_buffer
+		mov rsi, 1
+		mov rdx, 0
+		mov rcx, game_title
+		mov r8, 4
+		mov r9, 1
+		sub rsp, 0x8
+		push 0
+		call CopyText
+		add rsp, 0x10
+
 		mov rdi, inv_buffer
         call DrawRoom
 		;draw items into inv_buffer
+		mov rdi, inv_buffer
+		mov rsi, [hero_data]
+		;mov rsi, [rsi]
+		call DrawInv
+;void CopyText(buffer* buffer,int x,int y,char* string,int width, int height)   color
+		mov rdi, inv_buffer
+		mov rsi, 1
+		mov rdx, 0
+		mov rcx, inv_title
+		mov r8, 19
+		mov r9, 1
+		sub rsp, 0x8
+		push 0x0
+		call CopyText
+		add rsp, 0x10
 
         ;draw entities
         

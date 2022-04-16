@@ -1,6 +1,5 @@
 [x] load font
 [x] write text to screen
-; [] make shader to render text
 [x] draw character using DrawTextCodepoint
 [x] use buffer as text input [character,palette index], which is 2 bytes per pixel
 ; [] make useful functions for manipulating the text buffer
@@ -34,8 +33,8 @@ Game logic time !
     [x] make text buffers w/ function
     [x] make a main buffer (game scene) which is immediatly piped to the shader
     [x] make a inventory window that is 'blited' on top of the draw buffer after the main buffer
-[] inventory
-    [] plain text display current weapon (start with stick or something)
-    [] item on ground is sword (change item in inv when picked up)
+[x] inventory
+    [x] plain text display current weapon (start with stick or something)
+    [x] item on ground is sword (change item in inv when picked up)
     [] drop stick
 idk maybe enemy ai or something

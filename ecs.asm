@@ -1,5 +1,6 @@
 segment .data
     new_ent_fail: db "The component %d doesn't exist!",10,0
+	default_item_name: db "Null Item",0
 segment .text
 extern realloc
 extern malloc
@@ -60,6 +61,7 @@ MakeEntity:
         mov qword[rax+Item.color],3
         mov qword[rax+Item.parent], 0
         mov qword[rax+Item.damage], 15
+		mov qword[rax+Item.name], default_item_name
         mov rbx, Item_size
         jmp .all
     .hand:
@@ -208,6 +210,7 @@ AddComponent:
         mov qword[rax+rcx+Item.char], '/'
         mov qword[rax+rcx+Item.color],3
         mov qword[rax+rcx+Item.parent],0
+		mov qword[rax+rcx+Item.name], default_item_name
         mov qword[rax+rcx+Item_size],0
         add rax,rcx
         jmp .end
