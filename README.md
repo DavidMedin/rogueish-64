@@ -7,4 +7,4 @@ e -> pick up item
 
 move into enemy -> attack
 
-![image](https://user-images.githubusercontent.com/45665232/159072570-2a828c70-4124-4dca-8989-2c87c7f49987.png)
+![2022-04-15_20-31](https://user-images.githubusercontent.com/45665232/163656669-2b6800c0-0b02-4894-81ec-ac0f9f486bc7.png)
