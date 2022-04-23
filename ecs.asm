@@ -23,6 +23,8 @@ MakeEntity:
     je .item
     cmp rdi, 5
     je .hand
+	cmp rdi, AI
+	je .ai
     
     jmp .none
     .person:
@@ -72,6 +74,13 @@ MakeEntity:
         mov qword[rax+Hand.item], 0
         mov rbx, Hand_size
         jmp .all
+	.ai:
+		mov rdi, Ai_size
+		add rdi, 0x8
+		call malloc
+		mov qword[rax+Component.id], AI
+		mov rbx, Ai_size
+		jmp .all
     .none:
         ;that component doesn't exist!
         mov rsi, rdi
@@ -149,6 +158,8 @@ AddComponent:
     je .item
     cmp rsi, 5
     je .hand
+	cmp rsi, AI
+	je .ai
     jmp .none
 
     .pre:
@@ -224,6 +235,14 @@ AddComponent:
         mov qword[rax+rcx+Hand_size],0
         add rax,rcx
         jmp .end
+	.ai:
+		mov rsi, Ai_size
+		call .pre
+		mov qword[rax+rcx+Component.id],AI
+		mov qword[rax+rcx+Component.size], Ai_size
+		mov qword[rax+rcx+Ai_size],0
+		add rax, rcx
+		jmp .end
     .none:
         mov rdi, AddComponent_no_match
         mov rsi, qword[rsp]
@@ -267,6 +286,7 @@ GetComponent:
     push rbp
     mov rbp, rsp
     mov rbx, rdi
+	mov r10, 0
     .top:
         cmp qword[rbx+Component.id],0
         je .fail
@@ -275,6 +295,7 @@ GetComponent:
         je .found
 
         add rbx, qword[rbx+Component.size]
+		inc r10
         jmp .top
     .fail:
         mov rax, 0

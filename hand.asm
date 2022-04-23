@@ -81,7 +81,7 @@ PickUpUnHaneded: db "You can't pick up items without hands silly!",10,0
 PickUpMiss: db "No item is on the floor there!",10,0
 PickUpBadProgrammer: db "You dingus, that 'hero' doesn't have a position component!",10,0
 
-;void Attack(Entity** attackee)
+;void Attack(Entity** attackee,Entity* attacker)
 Attack:
     push rbp
     mov rbp, rsp
@@ -89,7 +89,7 @@ Attack:
 	sub rsp, 8 ; align:1
 
     ;Get hero's damage delt===============
-    mov rdi, [hero_data]
+    mov rdi, rsi
     mov rsi, HAND
     call GetComponent
     cmp rax, 0

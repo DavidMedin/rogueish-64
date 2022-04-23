@@ -115,6 +115,13 @@ struc Hand
     .item: resq 1
 endstruc
 
+%define AI 6
+struc Ai
+	.id: resq 1
+	.size: resq 1
+	; could have a type later
+endstruc
+
 %macro make_person 5
     mov rdi, 1
     call MakeEntity
@@ -182,6 +189,7 @@ endstruc
 %include "label.asm"
 %include "hand.asm"
 %include "inventory.asm"
+%include "ai.asm"
 
 segment .data
     winName: db "Rogueish 64",0
@@ -294,6 +302,11 @@ main:
 
     ;allocate the enemy
     make_person 40,20,100,'Z',1
+	;mov rdi, [rax]
+	mov rdi, rax
+	mov rsi, AI
+	call AddComponent ; add AI component
+	
 
 	;create stick item
     mov rdi, 4 
@@ -470,12 +483,13 @@ OnTick:
     mov rbp, rsp
         
         call Label_Move_Up
+		call AIMove
     mov rsp, rbp
     pop rbp
     ret
 
 ;rax                 rdi   rsi  rdx
-;entity* FindEntity(int x,int y,start)
+;entity** FindEntity(int x,int y,start)
 FindEntity:
     push rbp
     mov rbp,rsp
@@ -608,6 +622,7 @@ Move_Char:
             cmp qword[rsp], 0
             je .clean_done
             ; attack I guess
+			mov rsi, [hero_data]
             mov rdi, qword[rsp]
             
             call Attack
@@ -629,7 +644,7 @@ Move_Char:
 ;rcx can be NULL if returned 2. It will only point
 ;   to an entity if an entity is in the way.
 ;rax            rdi       rsi   rdx     rcx
-;int CanMove(char*buffer,int x,int y,entity* hit)
+;int CanMove(char*buffer,int x,int y,entity** hit)
 CanMove:
     push rbp
     mov rbp,rsp
