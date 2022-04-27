@@ -365,7 +365,13 @@ DestroyEntity:
     push rbp
     mov rbp, rsp
 
-
+    mov rsi, [rdi]
+	cmp rsi, [hero_data]
+	jne .good
+		; Is the hero, create death screen
+		mov qword[dead], 1
+		jmp .done
+	.good:
 	sub rsp, 8 ; align:1
     push rdi
     mov rdi, [rdi]

@@ -37,4 +37,7 @@ Game logic time !
     [x] plain text display current weapon (start with stick or something)
     [x] item on ground is sword (change item in inv when picked up)
     [] drop stick
-idk maybe enemy ai or something
+[x] idk maybe enemy ai or something
+[x] Make death screen
+    [x] maybe add respawning
+[] add randomness to when the enemy moves

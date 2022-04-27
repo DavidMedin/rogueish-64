@@ -220,7 +220,12 @@ segment .data
     game_buffer: make_buffer 75,67
 	final_buffer: make_buffer 75,67
 	inv_buffer: make_buffer 20,20
+	dead_buffer: make_buffer 22,20
+        dead_msg: db "You are dead!",0 ; 3 offset
+        exit_msg: db "Press Ecs to quit.",0
+        retry_msg: db "Press Space to retry",0
 
+	dead: dq 0
     entity_list: times 256 dq 0
 
     stack_not_aligned: db "Cringe! %d",10,0 ;"ERROR: The stack isn't aligned here! %s : %d",10,0
@@ -293,6 +298,7 @@ main:
 	mov rdi, inv_buffer
 	call DrawRoom
 
+    retry:
     mov qword[ent_list_end], entity_list
 
 ;   ===============Create Entities====================
@@ -352,6 +358,9 @@ main:
         
         cmp byte[time_check],0
         je .done_tick
+            cmp qword[dead], 1
+            je .dead
+            ; is alive
             ;key input stuff
             mov r11,0
             mov rdi, 340 ; Left Shift
@@ -391,6 +400,14 @@ main:
                 call OnTick
             ; ;update damage indicator
             ; call Label_Move_Up
+        jmp .done_tick
+        .dead:
+            mov rdi,32  ; 32 is space
+            call IsKeyDown
+            cmp al, 0
+            je .done_tick
+                mov qword[dead], 0
+                jmp retry
         .done_tick:
 
         
@@ -459,6 +476,48 @@ main:
 		mov rdx, 55
 		mov rcx, 47
 		call BlitBuffer
+
+		cmp qword[dead], 0
+		je .alive
+			; we are dead
+			mov rdi, dead_buffer
+            call DrawRoom
+
+            mov rdi, dead_buffer
+            mov rsi, 4
+            mov rdx, 4
+            mov rcx, dead_msg
+            mov r8, 0
+            mov r9, 0
+            sub rsp, 0x8
+            push 3
+            call CopyText
+
+            mov rdi, dead_buffer
+            mov rsi, 2
+            mov rdx, 6
+            mov rcx, exit_msg
+            mov r8,0
+            mov r9,0
+            mov qword[rsp], 1
+            call CopyText
+
+            mov rdi, dead_buffer
+            mov rsi, 1
+            mov rdx, 7
+            mov rcx, retry_msg
+            mov r8,0
+            mov r9,0
+            call CopyText
+
+            add rsp, 0x10
+            
+            mov rdi, dead_buffer
+            mov rsi, final_buffer
+            mov rdx, 26
+            mov rcx, 23
+            call BlitBuffer
+		.alive:
 
 		mov rdi, final_buffer
 		call DrawBuffer
