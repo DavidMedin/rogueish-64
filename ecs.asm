@@ -329,6 +329,7 @@ Deconstruct:
         je .label
         cmp qword[rbx],3
         je .position
+        jmp .cont
         .person:
             jmp .cont
         .label:
@@ -366,12 +367,13 @@ DestroyEntity:
     mov rbp, rsp
 
     mov rsi, [rdi]
-	cmp rsi, [hero_data]
-	jne .good
-		; Is the hero, create death screen
-		mov qword[dead], 1
-		jmp .done
-	.good:
+	; cmp rsi, [hero_data]
+	; jne .good
+	; 	; Is the hero, create death screen
+	; 	mov qword[dead], 1
+    ;     call DestroyAll
+	; 	; jmp .done
+	; .good:
 	sub rsp, 8 ; align:1
     push rdi
     mov rdi, [rdi]
@@ -397,4 +399,32 @@ DestroyEntity:
     ret
 
 ;void RemoveComponent(Entity* ent,int CompID)
-RemoveComponent:
+; RemoveComponent:
+
+DestroyAll:
+    push rbp
+    mov rbp, rsp
+
+    mov rdi, entity_list
+    ; add rdi, 0x8 ; skip the entity, who caused this. this is gross.
+    sub rsp, 0x8
+    push rdi
+    .top:
+        cmp rdi, [ent_list_end]
+        jge .bot
+
+        cmp qword[rdi], 0
+        je .skip
+        mov rsi, rdi
+        call DestroyEntity
+        .skip:
+
+        mov rdi, [rsp]
+        add rdi, 0x8
+        mov [rsp], rdi
+        jmp .top
+    .bot:
+
+    mov rsp, rbp
+    pop rbp
+    ret

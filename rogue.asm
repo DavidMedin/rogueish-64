@@ -410,16 +410,37 @@ main:
                 jmp retry
         .done_tick:
 
-        
+        call Render
+
+        jmp while_top
+    while_end:
+    
+    call CloseWindow
+
+    mov rax, 0
+    mov rsp,rbp
+    pop rbp
+    ret
+move_char_fail_msg: db "Attempted to move character out of bounds!",10,0
+
+Render:
+    push rbp
+    mov rbp, rsp
+
         call BeginDrawing
 
         mov edi, dword[pallete+2*0x4]
         
         call ClearBackground
 
+
+        cmp qword[dead], 1
+        je .no_clear
         ;clear buffer
         mov rdi, game_buffer
         call ClearBuffer
+
+        .no_clear:
 
         ;draw  room
 		mov rdi, game_buffer
@@ -434,6 +455,9 @@ main:
 		push 0
 		call CopyText
 		add rsp, 0x10
+
+        cmp qword[dead], 1
+        je .no_render
 
 		mov rdi, inv_buffer
         call DrawRoom
@@ -466,6 +490,8 @@ main:
         mov rdi, game_buffer
         call DrawInspector
 
+        .no_render:
+
 		mov rdi, game_buffer
 		mov rsi, final_buffer
 		mov rdx, 0
@@ -476,6 +502,7 @@ main:
 		mov rdx, 55
 		mov rcx, 47
 		call BlitBuffer
+
 
 		cmp qword[dead], 0
 		je .alive
@@ -524,18 +551,9 @@ main:
         
 		;check_stack 1
         call EndDrawing
-
-        jmp while_top
-    while_end:
-    
-    call CloseWindow
-
-    mov rax, 0
-    mov rsp,rbp
+    mov rsp, rbp
     pop rbp
     ret
-move_char_fail_msg: db "Attempted to move character out of bounds!",10,0
-
 
 OnTick:
     push rbp
@@ -543,6 +561,8 @@ OnTick:
         
         call Label_Move_Up
 		call AIMove
+        call Render
+        
     mov rsp, rbp
     pop rbp
     ret

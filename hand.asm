@@ -191,6 +191,14 @@ Attack:
     cmp rbx, 0
     je .end
     	mov rdi, [rbp-0x8]
+        mov rsi, [rdi]
+        cmp rsi,[hero_data]
+        jne .good_kill
+            ; tried to kill hero, kill everything!
+            call DestroyAll
+            mov qword[dead], 1
+            jmp .end
+        .good_kill:
     	call DestroyEntity
     ;======================================
     ; 16 bytes implicitly cleaned up
