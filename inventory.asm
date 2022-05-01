@@ -60,7 +60,7 @@ DrawInv:
 	mov rdi, [rbp-0x8]
 	;mov rdi, [rdi]
 	mov rsi, 1
-	mov rdx, 1
+	mov rdx, 2
 	; write to rcx a string
 	mov rcx, [rbp-0x28]
 	mov r8, 18
@@ -72,6 +72,25 @@ DrawInv:
 	mov rdi, [rbp-0x28]
 	call free
 
+	;draw coin
+	lea rdi,[rbp-0x10]
+	mov rsi, .coin_msg
+	mov rdx, [coin]
+	mov rax, 0
+	call asprintf
+
+	mov rdi, [rbp-0x8]
+	mov rsi, 1
+	mov rdx, 1
+	mov rcx, [rbp-0x10]
+	mov r8, 18
+	mov r9, 1
+	; stack already has colors
+	call CopyText
+
+	mov rdi, [rbp-0x10]
+	call free
+
 	.fail:
 	.end:
 	mov rsp, rbp
@@ -80,3 +99,4 @@ DrawInv:
 	.no_comp: db "DrawInv: Entity doesn't have any hands!",10,0
 	.no_item_comp: db "DrawInv: 'Item' doesn't have an [Item] entity!",10,0
 	.hand_msg: db "Hand: %s",0
+	.coin_msg: db "Coin: %d",0

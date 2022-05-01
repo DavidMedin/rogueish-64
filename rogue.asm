@@ -122,6 +122,12 @@ struc Ai
 	; could have a type later
 endstruc
 
+%define SCENE 7
+struc Scene
+    .id: resq 1
+    .size: resq 1
+endstruc
+
 %macro make_person 5
     mov rdi, 1
     call MakeEntity
@@ -226,6 +232,7 @@ segment .data
         retry_msg: db "Press Space to retry",0
 
 	dead: dq 0
+    coin: dq 0
     entity_list: times 256 dq 0
 
     stack_not_aligned: db "Cringe! %d",10,0 ;"ERROR: The stack isn't aligned here! %s : %d",10,0
@@ -255,6 +262,9 @@ extern GetFrameTime
 extern malloc
 extern free
 extern asprintf
+extern time
+extern SetRandomSeed
+extern GetRandomValue
 
 ;arguments -> rdi,rsi,rdx,rcx,r8,r9,stack
 main:
@@ -292,6 +302,12 @@ main:
     mov r8, font
     
     call RealLoadFontEx ; "Real"
+
+    ; seed randomness
+    mov rdi, 0
+    call time
+    mov rdi, rax
+    call SetRandomSeed; experimentally did nothing
     
     mov rdi, game_buffer
     call DrawRoom
@@ -299,6 +315,7 @@ main:
 	call DrawRoom
 
     retry:
+    mov qword[coin], 0
     mov qword[ent_list_end], entity_list
 
 ;   ===============Create Entities====================
@@ -306,24 +323,7 @@ main:
     make_person 20,40,100,'@',0
     mov qword[hero_data], rax
 
-    ;allocate the enemy
-    make_person 40,20,100,'Z',1
-	;mov rdi, [rax]
-	mov rdi, rax
-	mov rsi, AI
-	call AddComponent ; add AI component
-	
-
-	;create stick item
-    mov rdi, 4 
-    call MakeEntity
-    mov rdi, [rax]
-	mov qword[rdi + Item.name], item_name
-
-    mov rsi, 3
-    call AddComponent
-    mov qword[rax+Position.x], 10
-    mov qword[rax+Position.y], 10
+   call GenerateLevel
 
 ;====================================================
     while_top:
@@ -339,7 +339,7 @@ main:
         ;if it is greater set ready var to 1
         ;if ready var is 1, get key down
         ;   if key is down, set ready var to 0
-        
+
         call GetFrameTime
         cvtps2pd xmm0,xmm0 ;convert the float to double
         addsd xmm0,[tick_acc]
@@ -422,6 +422,33 @@ main:
     pop rbp
     ret
 move_char_fail_msg: db "Attempted to move character out of bounds!",10,0
+
+GenerateLevel:
+    push rbp
+    mov rbp, rsp
+
+    ;allocate the enemy
+    make_person 40,20,100,'Z',1
+	;mov rdi, [rax]
+	mov rdi, rax
+	mov rsi, AI
+	call AddComponent ; add AI component
+	
+
+	;create stick item
+    mov rdi, 4 
+    call MakeEntity
+    mov rdi, [rax]
+	mov qword[rdi + Item.name], item_name
+
+    mov rsi, 3
+    call AddComponent
+    mov qword[rax+Position.x], 10
+    mov qword[rax+Position.y], 10
+
+    mov rsp, rbp
+    pop rbp
+    ret
 
 Render:
     push rbp

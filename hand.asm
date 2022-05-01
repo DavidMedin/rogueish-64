@@ -200,6 +200,7 @@ Attack:
             jmp .end
         .good_kill:
     	call DestroyEntity
+        add qword[coin], 1
     ;======================================
     ; 16 bytes implicitly cleaned up
     .end:

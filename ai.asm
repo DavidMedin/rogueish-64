@@ -1,5 +1,6 @@
 segment .text
 extern printf
+extern GetRandomValue
 
 AIMove:
 	push rbp
@@ -94,28 +95,15 @@ AIMove:
 					mov rsi,[rsi]
 					mov rdi, [rbp-0x28]
 					call Attack
-					;mov rdi, [rbp-0x28]
-					;mov rdi, [rdi]
-					;mov rsi, PERSON
-					;call GetComponent
-					;cmp rax, 0
-					;je .skip ; doesn't have a person, can't attack
-						; Is a person! Time to attack!
-						; Oh, but we need a hand from the enemy
-					;mov rdi, [rbp-0x8]
-					;mov rdi, [rdi]
-					;mov rsi, HAND
-					;call GetComponent
-					;cmp rax, 0
-					;jne .has_hand
-						;int03
-					;.has_hand:
-					;we have a hand
-					; change Attack first
-					
 					jmp .skip
 				.miss:
 					; move!
+					mov rdi, 0
+					mov rsi, 10
+					call GetRandomValue
+					cmp rax, 5
+					jl .skip
+
 					mov rbx, [rbp-0x10] ; position
 					mov rcx, [rbp-0x18]
 					add [rbx+Position.x], rcx

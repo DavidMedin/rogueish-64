@@ -399,7 +399,15 @@ DestroyEntity:
     ret
 
 ;void RemoveComponent(Entity* ent,int CompID)
-; RemoveComponent:
+RemoveComponent:
+    push rbp
+    mov rbp, rsp
+
+    
+
+    mov rsp, rbp
+    pop rbp
+    ret
 
 DestroyAll:
     push rbp
